@@ -119,20 +119,23 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK);
   function int calc_num_gates();
     int         idx_q[$];            
     bit         tree[int][];         //For storing info about which nodes have been visited
-    int         num_gates    = 0;  
-    t_operation func         = func_gene[conn_output - NUM_INPUTS];           
+    int         num_gates     = 0;  
+    t_operation func          = func_gene[conn_output - NUM_INPUTS];     
+    bit         tree_complete = 0;
     
     idx_q.push_front(conn_output);
     
-    //Traverse comb_circuit backwards from its output to its input(s)
-    for(int i=0; i<20; i++)begin
+    //Traverse comb_circuit backwards from its output to its input(s).
+    //Only nodes that affect the output are added to the tree.
+    //When all nodes have been added to the tree, exit this while-loop.
+    while(~tree_complete)begin
       if(idx_q[0] >= NUM_INPUTS)begin
       
+        //Function of the node currently pointed to
         func = func_gene[idx_q[0] - NUM_INPUTS];    
-        
-        //if(func != WIRE)
-        //  num_gates = num_gates + 1;
-          
+ 
+        //Allocate memory for the dynamic dimension of the tree according to the arity of the gate currently pointed to.
+        //OBS: only if memory has not been allocated already for this node.
         if(tree[idx_q[0]].size() == 0)begin  
           if(arity_lut[int'(func)] == 1)begin
             tree[idx_q[0]]    = new[1];
@@ -144,6 +147,9 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK);
           end
         end
            
+        //If unvisited nodes exist in the backward direction in the circuit, traverse backwards.
+        //If all nodes in the backward direction from the current node have been visited,
+        //traverse forwards in the circuit (towards output).
         if(tree[idx_q[0]][0] == 0)begin
           tree[idx_q[0]][0] = 1;
           idx_q.push_front(conn_gene[idx_q[0] - NUM_INPUTS][0]);
@@ -151,16 +157,20 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK);
           tree[idx_q[0]][1] = 1;
           idx_q.push_front(conn_gene[idx_q[0] - NUM_INPUTS][1]);
         end else begin
-          idx_q.delete(0);
+          if(idx_q[1] == conn_output && tree[idx_q[1]].and() == 1)
+            tree_complete = 1;
+          else
+            idx_q.delete(0);
         end
       end else if(idx_q[0] < NUM_INPUTS)begin
-        
-        idx_q.delete(0);
-        
+        if(idx_q[1] == conn_output && tree[idx_q[1]].and() == 1)
+            tree_complete = 1;
+        else
+          idx_q.delete(0);
       end 
     end
 
-        
+    //Check all nodes present in tree. All functions except "wire" increase the gate count
     foreach(tree[i])begin
       if(func_gene[i - NUM_INPUTS] != WIRE)
         num_gates = num_gates + 1;
