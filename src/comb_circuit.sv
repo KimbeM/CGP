@@ -1,4 +1,4 @@
-class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK);
+class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_MUTAT);
   typedef enum integer {WIRE = 0, NOT = 1, AND = 2, OR = 3, XOR = 4} t_operation;
   int         arity_lut[5] = {1, 1, 2, 2, 2};  //Arity look-up table for "t_operation" typedef
   int         node_arity[NUM_INPUTS + NUM_ROWS * NUM_COLS];
@@ -178,5 +178,54 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK);
     
     return num_gates;
   endfunction: calc_num_gates
+  
+  function mutate();
+    int         mut_nodes[NUM_MUTAT];
+    t_operation mut_func;
+    int         conn;
+    int         conn_prev;
+    int         idx = 0;
+  
+    //Randomize which nodes get mutated
+    for(int i=0; i<NUM_MUTAT; i++)begin
+      mut_nodes[i] = $urandom_range(NUM_INPUTS, NUM_ROWS * NUM_COLS + NUM_INPUTS);
+    end
+  
+    //Randomize functions for the chosen nodes
+    for(int i=0; i<NUM_MUTAT; i++)begin
+      func_gene[i - NUM_INPUTS] = t_operation'($urandom_range(0,4));
+    end    
+    
+    //Randomize connections for mutation nodes
+    //If arity = 2, ensure that connections are from different nodes
+    for(int i=0; i<NUM_ROWS; i++)begin
+      for(int j=0; j<NUM_COLS; j++)begin
+        if(mut_nodes[idx] == NUM_INPUTS + i + (j * NUM_ROWS))begin
+          idx = idx + 1;
+          for(int k=0; k<node_arity[NUM_INPUTS + i + (NUM_ROWS * j)]; k++)begin
+            if(k == 1)
+              conn_prev = conn;
+            do begin
+              if(j == 0)begin
+                conn               = $urandom_range(0, NUM_INPUTS-1);
+                conn_gene[i][k]    = conn;
+              end else if(j < LEVELS_BACK)begin
+                conn                             = $urandom_range(0, NUM_INPUTS+(j*NUM_ROWS)-1);
+                conn_gene[i + (NUM_ROWS * j)][k] = conn;
+              end else begin
+                conn                             = $urandom_range(NUM_INPUTS+((j-LEVELS_BACK)*NUM_ROWS), NUM_INPUTS+(j*NUM_ROWS)-1);
+                conn_gene[i + (NUM_ROWS * j)][k] = conn;
+              end
+            end while(conn == conn_prev && k == 1);
+          end
+        end
+          if(idx == NUM_MUTAT)
+            break;
+      end
+        if(idx == NUM_MUTAT)
+          break; 
+    end
+  
+  endfunction: mutate
  
 endclass: comb_circuit
