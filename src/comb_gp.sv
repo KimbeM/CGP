@@ -13,12 +13,15 @@ module comb_gp;
   bit[NUM_INPUTS-1:0] INPUTS;
   bit                 OUT;
   
-  int                 num_pass  = 0;
-  int                 num_gates = 0;
+  int                 num_pass          = 0;
+  int                 num_gates         = 0;
+  int                 parent_fitness    = 0;
+  int                 offspring_fitness = 0;
+  int                 num_generations   = 10000;  
   
   comb_circuit        population[POPUL_SIZE];
+  comb_circuit        offspring;
   
-  int                 num_generations = 10000;
   
 
 initial begin
@@ -40,6 +43,7 @@ initial begin
   //Main 
   for(int x=0; x<=num_generations; x++)begin
     foreach(population[i])begin
+      //Evaluate fitness
       for(int j=0; j<=2**NUM_INPUTS-1; j++)begin
         INPUTS <= j;
         #1;
@@ -48,6 +52,8 @@ initial begin
           num_pass = num_pass + 1;
         end 
       end
+      
+      parent_fitness = num_pass;
       
       if(i == 0)begin
         $display("\n");
@@ -64,7 +70,30 @@ initial begin
         $stop;
       end
       
-      population[i].mutate();
+      //Create mutated offspring.
+      offspring =new();
+      offspring = population[i].copy(); 
+      offspring.mutate();
+      
+      //Evaluate fitness
+      for(int j=0; j<=2**NUM_INPUTS-1; j++)begin
+        INPUTS <= j;
+        #1;
+        OUT = offspring.evaluate_fitness(INPUTS);
+        if(EXP_OUTPUTS[j] == OUT)begin
+          num_pass = num_pass + 1;
+        end 
+      end      
+
+      offspring_fitness = num_pass;     
+
+      //If fitness for offspring is equal or better than for parent, 
+      //replace parent with offspring.
+      if(parent_fitness <= offspring_fitness)
+        population[i] = offspring;
+      
+      num_pass = 0;
+      
       
     end  
   end

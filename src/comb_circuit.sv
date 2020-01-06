@@ -15,6 +15,17 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
   
   endfunction: new
   
+  function comb_circuit copy();
+    copy = new();
+    copy.arity_lut    = this.arity_lut;
+    copy.node_arity   = this.node_arity;
+    copy.func_gene    = this.func_gene;
+    copy.conn_gene    = this.conn_gene;
+    copy.eval_outputs = this.eval_outputs;
+    copy.conn_output  = this.conn_output;
+    return copy;
+  endfunction  
+  
   function create_func_gene();
     //Randomize operation for each node
     for(int i=0; i<NUM_ROWS * NUM_COLS; i++)begin
