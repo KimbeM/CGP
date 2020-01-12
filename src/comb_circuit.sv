@@ -133,6 +133,8 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
     int         num_gates     = 0;  
     t_operation func          = func_gene[conn_output - NUM_INPUTS];     
     bit         tree_complete = 0;
+    string      netlist[$];
+    string      s;
     
     idx_q.push_front(conn_output);
     
@@ -163,10 +165,18 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
         //traverse forwards in the circuit (towards output).
         if(tree[idx_q[0]][0] == 0)begin
           tree[idx_q[0]][0] = 1;
+          if(func_gene[idx_q[0] - NUM_INPUTS] == NOT)begin
+            s = "(";
+            netlist.push_back(s);
+            s = "NOT";
+            netlist.push_back(s);
+          end          
           idx_q.push_front(conn_gene[idx_q[0] - NUM_INPUTS][0]);
-        end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin
+        end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin       
           tree[idx_q[0]][1] = 1;
-          idx_q.push_front(conn_gene[idx_q[0] - NUM_INPUTS][1]);
+          s = func_gene[idx_q[0] - NUM_INPUTS].name;
+          netlist.push_back(s);          
+          idx_q.push_front(conn_gene[idx_q[0] - NUM_INPUTS][1]); 
         end else begin
           if(idx_q[1] == conn_output && tree[idx_q[1]].and() == 1)
             tree_complete = 1;
@@ -177,6 +187,17 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
         if(idx_q[1] == conn_output && tree[idx_q[1]].and() == 1)
             tree_complete = 1;
         else
+          if(tree[idx_q[1]][1] == 0)begin
+            s = "(";
+            netlist.push_back(s);
+            s.itoa(idx_q[0]);
+            netlist.push_back(s);
+          end else begin
+            s.itoa(idx_q[0]);
+            netlist.push_back(s);    
+            s = ")";
+            netlist.push_back(s);
+          end
           idx_q.delete(0);
       end 
     end
