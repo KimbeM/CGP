@@ -6,6 +6,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
   int         conn_gene[NUM_ROWS * NUM_COLS][];
   bit         eval_outputs[NUM_INPUTS + NUM_ROWS * NUM_COLS];
   int         conn_output;
+  int         num_gates;
 
   function new();
   
@@ -23,6 +24,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
     copy.conn_gene    = this.conn_gene;
     copy.eval_outputs = this.eval_outputs;
     copy.conn_output  = this.conn_output;
+    copy.num_gates    = this.num_gates;
     return copy;
   endfunction  
   
@@ -130,7 +132,6 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
   function int calc_num_gates();
     int         idx_q[$];            
     bit         tree[int][];         //For storing info about which nodes have been visited
-    int         num_gates     = 0;  
     t_operation func          = func_gene[conn_output - NUM_INPUTS];     
     bit         tree_complete = 0;
     

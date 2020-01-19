@@ -17,10 +17,12 @@ module comb_gp;
   int                 num_gates         = 0;
   int                 parent_fitness    = 0;
   int                 offspring_fitness = 0;
-  int                 num_generations   = 10000;  
+  int                 num_generations   = 100000;  
+  bit                 solution_exists   = 0;
   
   comb_circuit        population[POPUL_SIZE];
   comb_circuit        offspring;
+  comb_circuit        best_solution;
   
   
 
@@ -43,6 +45,13 @@ initial begin
   //Main 
   for(int x=0; x<=num_generations; x++)begin
     foreach(population[i])begin
+     
+      if(i == 0)begin
+        $display("\n");
+        $display("GENERATION NUMBER: %3d", x);
+        $display("\n");
+      end    
+    
       //Evaluate fitness
       for(int j=0; j<=2**NUM_INPUTS-1; j++)begin
         INPUTS <= j;
@@ -55,21 +64,28 @@ initial begin
       
       parent_fitness = num_pass;
       
-      if(i == 0)begin
-        $display("\n");
-        $display("GENERATION NUMBER: %3d", x);
-        $display("\n");
-      end
-      
       if(num_pass != 2**NUM_INPUTS)begin
-        $display("Fitness for genotype nr %2d: %2d /%2d", i, num_pass, 2**NUM_INPUTS);
-        num_pass = 0;
+        $display("Number of tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**NUM_INPUTS);
       end else begin
+        $display("All tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**NUM_INPUTS);
         num_gates = population[i].calc_num_gates();
-        $display("Full fitness achieved for genotype nr %2d with %2d gates. Terminating program", i, num_gates);
-        $stop;
+        if(solution_exists == 1)begin
+          if(best_solution.num_gates > num_gates)begin
+            best_solution = population[i].copy();
+            $display("An improved solution found in generation %2d, genotype %2d. Number of gates is %2d", x, i, num_gates);
+            $display("Breakpoint here");
+          end
+        end else begin
+          solution_exists = 1;
+          best_solution = population[i].copy();
+          $display("First viable solution found in generation %2d, genotype %2d. Number of gates is %2d", x, i, num_gates);
+        end
+        if(best_solution.num_gates == 4)
+          $stop;
       end
       
+      num_pass = 0;
+
       //Create mutated offspring.
       offspring =new();
       offspring = population[i].copy(); 
