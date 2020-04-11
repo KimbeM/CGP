@@ -3,13 +3,13 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
   
   parameter int     arity_lut[5] = {1, 1, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
   
-  int         genotype[NUM_ROWS * NUM_COLS][];
-  int         node_arity[NUM_ROWS * NUM_COLS];
+  int         genotype[NUM_INPUTS:(NUM_INPUTS + NUM_ROWS * NUM_COLS)][];
+  int         node_arity[NUM_INPUTS:(NUM_INPUTS + NUM_COLS*NUM_ROWS)];
   
   
   //t_operation func_gene[NUM_ROWS * NUM_COLS];
   int         conn_gene[NUM_ROWS * NUM_COLS][];
-  bit         eval_outputs[NUM_INPUTS + NUM_ROWS * NUM_COLS];
+  bit         eval_outputs[0:(NUM_INPUTS + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
   int         conn_output;
   int         num_gates;
 
@@ -48,7 +48,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
   
   function randomize_functions(); 
     //Randomize operation for each node
-    for(int i=0; i<NUM_ROWS * NUM_COLS; i++)begin
+    for(int i=NUM_INPUTS; i<NUM_ROWS * NUM_COLS + NUM_INPUTS; i++)begin
       genotype[i][0] = $urandom_range(0, $size(arity_lut)-1);
       node_arity[i]  = arity_lut[genotype[i][0]];
     end   
@@ -68,13 +68,13 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
           do begin      
             if(j == 0)begin      
               conn               = $urandom_range(0, NUM_INPUTS-1);      
-              genotype[i][k+1]   = conn;      
+              genotype[i+NUM_INPUTS][k+1]   = conn;      
             end else if(j < LEVELS_BACK)begin      
               conn                              = $urandom_range(0, NUM_INPUTS+(j*NUM_ROWS)-1);      
-              genotype[i + (NUM_ROWS * j)][k+1] = conn;      
+              genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
             end else begin      
               conn                             = $urandom_range(NUM_INPUTS+((j-LEVELS_BACK)*NUM_ROWS), NUM_INPUTS+(j*NUM_ROWS)-1);      
-              genotype[i + (NUM_ROWS * j)][k+1] = conn;      
+              genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
             end      
           end while(conn == conn_prev && k == 1);      
         end        
@@ -82,7 +82,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
     end
     
     //Randomize connection for output node
-    conn_output = $urandom_range((NUM_COLS-LEVELS_BACK)*NUM_ROWS, (NUM_COLS*NUM_ROWS)-1);    
+    conn_output = $urandom_range((NUM_COLS-LEVELS_BACK)*NUM_ROWS + NUM_INPUTS, (NUM_COLS*NUM_ROWS) + NUM_INPUTS - 1);    
     
   endfunction: randomize_connections   
 
@@ -122,10 +122,10 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
     end
     
     //Evaluate outputs for rest of comb circuit gate
-    for(int i=0; i<NUM_ROWS * NUM_COLS; i++)begin
-      eval_outputs[i + NUM_INPUTS] = evaluate_node_output(i);
+    for(int i=NUM_INPUTS; i<NUM_ROWS * NUM_COLS + NUM_INPUTS; i++)begin
+      eval_outputs[i] = evaluate_node_output(i);
       if(i == conn_output)begin
-        out = eval_outputs[i + NUM_INPUTS];
+        out = eval_outputs[i];
         break;
       end
     end
@@ -142,7 +142,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
   
     //Randomize which nodes get mutated
     for(int i=0; i<NUM_MUTAT; i++)begin
-      mut_nodes[i] = $urandom_range(0, NUM_ROWS * NUM_COLS);
+      mut_nodes[i] = $urandom_range(NUM_INPUTS, NUM_ROWS * NUM_COLS + NUM_INPUTS);
     end
   
     //Randomize functions for the chosen nodes
@@ -158,20 +158,20 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
         if(mut_nodes[idx] == i + (j * NUM_ROWS))begin
           idx = idx + 1;
           for(int k=0; k<node_arity[i + (j * NUM_ROWS)]; k++)begin
-            if(k == 1)
-              conn_prev = conn;
-            do begin
+            if(k == 1)      
+              conn_prev = conn;      
+            do begin      
               if(j == 0)begin      
                 conn               = $urandom_range(0, NUM_INPUTS-1);      
-                genotype[i][k+1]   = conn;      
+                genotype[i+NUM_INPUTS][k+1]   = conn;      
               end else if(j < LEVELS_BACK)begin      
                 conn                              = $urandom_range(0, NUM_INPUTS+(j*NUM_ROWS)-1);      
-                genotype[i + (NUM_ROWS * j)][k+1] = conn;      
+                genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
               end else begin      
                 conn                             = $urandom_range(NUM_INPUTS+((j-LEVELS_BACK)*NUM_ROWS), NUM_INPUTS+(j*NUM_ROWS)-1);      
-                genotype[i + (NUM_ROWS * j)][k+1] = conn;      
-              end 
-            end while(conn == conn_prev && k == 1);
+                genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
+              end      
+            end while(conn == conn_prev && k == 1); 
           end
         end
           if(idx == NUM_MUTAT)
@@ -188,6 +188,7 @@ function int calc_num_gates();
   bit         tree[int][];         //For storing info about which nodes have been visited  
   t_operation func          = t_operation'(genotype[conn_output][0]);       
   bit         tree_complete = 0;  
+  string      s;  
     
   idx_q.push_front(conn_output);  
     
@@ -239,8 +240,14 @@ function int calc_num_gates();
   
   //Check all nodes present in tree. All functions except "wire" increase the gate count  
   foreach(tree[i])begin  
-    if(t_operation'(genotype[i][0]) != WIRE)  
+    if(t_operation'(genotype[i][0]) != WIRE) 
+    begin
+      if(arity_lut[genotype[i][0]] == 1)
+        $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
+      else
+        $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);        
       num_gates = num_gates + 1;  
+    end
   end  
     
   return num_gates;  
