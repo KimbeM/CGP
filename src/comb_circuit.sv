@@ -62,7 +62,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
     //Randomize connections for each node
     for(int i=0; i<NUM_ROWS; i++)begin
       for(int j=0; j<NUM_COLS; j++)begin  
-        for(int k=0; k<node_arity[i + (NUM_ROWS * j)]; k++)begin      
+        for(int k=0; k<node_arity[i + (NUM_ROWS * j) + NUM_INPUTS]; k++)begin      
           if(k == 1)      
             conn_prev = conn;      
           do begin      
@@ -157,7 +157,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_
       for(int j=0; j<NUM_COLS; j++)begin
         if(mut_nodes[idx] == i + (j * NUM_ROWS))begin
           idx = idx + 1;
-          for(int k=0; k<node_arity[i + (j * NUM_ROWS)]; k++)begin
+          for(int k=0; k<node_arity[i + (j * NUM_ROWS) + NUM_INPUTS]; k++)begin
             if(k == 1)      
               conn_prev = conn;      
             do begin      
@@ -220,10 +220,10 @@ function int calc_num_gates();
       //traverse forwards in the circuit (towards output).  
       if(tree[idx_q[0]][0] == 0)begin  
         tree[idx_q[0]][0] = 1;  
-        idx_q.push_front(genotype[idx_q[0]][0]);  
+        idx_q.push_front(genotype[idx_q[0]][1]);  
       end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin  
         tree[idx_q[0]][1] = 1;  
-        idx_q.push_front(genotype[idx_q[0]][1]);  
+        idx_q.push_front(genotype[idx_q[0]][2]);  
       end else begin  
         if(idx_q[1] == conn_output && tree[idx_q[1]].and() == 1)  
           tree_complete = 1;  
@@ -240,14 +240,12 @@ function int calc_num_gates();
   
   //Check all nodes present in tree. All functions except "wire" increase the gate count  
   foreach(tree[i])begin  
-    if(t_operation'(genotype[i][0]) != WIRE) 
-    begin
-      if(arity_lut[genotype[i][0]] == 1)
-        $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
-      else
-        $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);        
+    if(arity_lut[genotype[i][0]] == 1)
+      $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
+    else
+      $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);   
+    if(t_operation'(genotype[i][0]) != WIRE)        
       num_gates = num_gates + 1;  
-    end
   end  
     
   return num_gates;  
