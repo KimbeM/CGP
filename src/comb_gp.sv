@@ -80,7 +80,7 @@ initial begin
           best_solution = population[i].copy();
           $display("First viable solution found in generation %2d, genotype %2d. Number of gates is %2d", x, i, num_gates);
         end
-        if(best_solution.num_gates == 4)
+        if(best_solution.num_gates < 4)
           $stop;
       end
       
@@ -113,7 +113,6 @@ initial begin
       
     end  
   end
-  
 end 
 
 endmodule
