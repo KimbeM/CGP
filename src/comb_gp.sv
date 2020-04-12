@@ -2,27 +2,26 @@ module comb_gp;
   timeunit 1ns;
   import comb_gp_pkg::*;
   
-  parameter           NUM_INPUTS;
-  parameter           EXP_OUTPUTS;
-  parameter           NUM_ROWS;
-  parameter           NUM_COLS;
-  parameter           LEVELS_BACK;
-  parameter           POPUL_SIZE;
-  parameter           NUM_MUTAT;
+  parameter            X_WIDTH;
+  parameter            Y_WIDTH;
+  parameter            NUM_ROWS;
+  parameter            NUM_COLS;
+  parameter            LEVELS_BACK;
+  parameter            POPUL_SIZE;
+  parameter            NUM_MUTAT;
   
-  bit[NUM_INPUTS-1:0] INPUTS;
-  bit                 OUT;
+  bit[X_WIDTH-1:0]     X;
+  bit[Y_WIDTH-1:0]     Y;
   
-  int                 num_pass          = 0;
-  int                 num_gates         = 0;
-  int                 parent_fitness    = 0;
-  int                 offspring_fitness = 0;
-  int                 num_generations   = 100000;  
-  bit                 solution_exists   = 0;
+  int                  L1_norm           = 0; //Sum of absolute deviations
+  int                  parent_fitness    = 0;
+  int                  offspring_fitness = 0;
+  int                  num_generations   = 100000;  
+  bit                  solution_exists   = 0;
   
-  comb_circuit        population[POPUL_SIZE];
-  comb_circuit        offspring;
-  comb_circuit        best_solution;
+  comb_circuit         population[POPUL_SIZE];
+  comb_circuit         offspring;
+  comb_circuit         best_solution;
   
   
 
@@ -34,40 +33,56 @@ initial begin
 
 
   //Initialization phase
-  assert (NUM_INPUTS  > 0 && NUM_INPUTS  < 6)                  else $fatal ("FAILURE! NUMBER OF INPUTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
+  assert (X_WIDTH  > 0 && X_WIDTH  < 6)                        else $fatal ("FAILURE! WIDTH OF X HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
+  assert (Y_WIDTH  > 0 && Y_WIDTH  < 6)                        else $fatal ("FAILURE! WIDTH OF Y HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
   assert (NUM_ROWS    > 0 && NUM_ROWS    < 17)                 else $fatal ("FAILURE! NUMBER OF ROWS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (NUM_COLS    > 0 && NUM_COLS    < 17)                 else $fatal ("FAILURE! NUMBER OF COLUMNS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (LEVELS_BACK > 0 && LEVELS_BACK <= NUM_COLS)          else $fatal ("FAILURE! LEVELS BACK HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUM_COLS)");
   assert (NUM_MUTAT   > 0 && NUM_MUTAT <= NUM_ROWS * NUM_COLS) else $fatal ("FAILURE! NUMBER OF MUTATIONS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUMBER OF NODES)");
   assert (POPUL_SIZE  > 0)                                     else $fatal ("FAILURE! POPULATION SIZE MUST BE LARGER THAN 0");
 
+
+  
  
   //Main 
-  for(int x=0; x<=num_generations; x++)begin
+  for(int i=0; i<=num_generations; i++)begin
     foreach(population[i])begin
      
       if(i == 0)begin
         $display("\n");
-        $display("GENERATION NUMBER: %3d", x);
+        $display("GENERATION NUMBER: %3d", i);
         $display("\n");
       end    
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
       //Evaluate fitness
-      for(int j=0; j<=2**NUM_INPUTS-1; j++)begin
-        INPUTS <= j;
+      for(int j=0; j<=2**X_WIDTH-1; j++)begin
+        X <= j;
         #1;
-        OUT = population[i].evaluate_fitness(INPUTS);
-        if(EXP_OUTPUTS[j] == OUT)begin
+        Y = population[i].evaluate_fitness(X);
+        if(EXP_OUTPUTS[j] == Y)begin
           num_pass = num_pass + 1;
         end 
       end
       
       parent_fitness = num_pass;
       
-      if(num_pass != 2**NUM_INPUTS)begin
-        $display("Number of tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**NUM_INPUTS);
+      if(num_pass != 2**X_WIDTH)begin
+        $display("Number of tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**X_WIDTH);
       end else begin
-        $display("All tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**NUM_INPUTS);
+        $display("All tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**X_WIDTH);
         num_gates = population[i].calc_num_gates();
         if(solution_exists == 1)begin
           if(best_solution.num_gates > num_gates)begin
@@ -92,11 +107,11 @@ initial begin
       offspring.mutate();
       
       //Evaluate fitness
-      for(int j=0; j<=2**NUM_INPUTS-1; j++)begin
-        INPUTS <= j;
+      for(int j=0; j<=2**X_WIDTH-1; j++)begin
+        X <= j;
         #1;
-        OUT = offspring.evaluate_fitness(INPUTS);
-        if(EXP_OUTPUTS[j] == OUT)begin
+        Y = offspring.evaluate_fitness(X);
+        if(EXP_OUTPUTS[j] == Y)begin
           num_pass = num_pass + 1;
         end 
       end      
