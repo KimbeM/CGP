@@ -3,11 +3,12 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
   
   parameter int     arity_lut[5] = {1, 1, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
   
-  int         genotype[X_WIDTH:(X_WIDTH + NUM_ROWS * NUM_COLS)][];
-  int         node_arity[X_WIDTH:(X_WIDTH + NUM_COLS*NUM_ROWS)];
-  bit         eval_outputs[0:(X_WIDTH + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
+  int         genotype[X_WIDTH:(X_WIDTH + NUM_ROWS * NUM_COLS)-1][];
+  int         node_arity[X_WIDTH:(X_WIDTH + NUM_COLS*NUM_ROWS)-1];
+  bit         eval_outputs[(X_WIDTH + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
   int         conn_outputs[Y_WIDTH];
   int         num_gates;
+  int         fitness = 100;      //Initialize with arbitrarily high number for bad fitness ;
 
   function new();
   
@@ -21,7 +22,7 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
     copy.genotype     = this.genotype;  
     copy.eval_outputs = this.eval_outputs;  
     copy.conn_outputs = this.conn_outputs;  
-    copy.num_gates    = this.num_gates;  
+    copy.fitness      = this.fitness;  
     return copy;  
   endfunction    
   
@@ -107,7 +108,7 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
   endfunction: evaluate_node_output
 
   function bit[Y_WIDTH-1:0] evaluate_outputs(bit[X_WIDTH-1:0] X);
-    bit Y;
+    bit[Y_WIDTH-1:0] Y;
     int Y_evaluated = 0; //Counter to indicate how many bits of output Y have been evaluated
     int out_matches[$];  //Amount of matches indicate how many bits of the output Y are driven by currently evaluated node
   
@@ -119,9 +120,10 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
     //Evaluate outputs for comb circuit nodes
     for(int i=X_WIDTH; i<NUM_ROWS * NUM_COLS + X_WIDTH; i++)begin
       eval_outputs[i] = evaluate_node_output(i);
-      out_matches     = conn_outputs.find(i);
+      out_matches     = conn_outputs.find_index with (item == i);
       if($size(out_matches) > 0)begin
-        Y = eval_outputs[i];
+        foreach(out_matches[j])
+          Y[j] = eval_outputs[i];
         Y_evaluated = Y_evaluated + $size(out_matches); 
         if(Y_evaluated == Y_WIDTH)
           break;                    //Break loop when all bits of output Y have been evaluated
@@ -181,60 +183,63 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
     
   endfunction: mutate  
   
-function int calc_num_gates();  
-  int         idx_q[$];              
-  bit         tree[int][];         //For storing info about which nodes have been visited  
-  t_operation func          = t_operation'(genotype[conn_outputs][0]);       
-  bit         tree_complete = 0;  
-  string      s;  
-    
-  idx_q.push_front(conn_outputs);  
-    
-  //Traverse comb_circuit backwards from its output to its input(s).  
-  //Only nodes that affect the output are added to the tree.  
-  //When all nodes have been added to the tree, exit this while-loop.  
-  while(~tree_complete)begin  
-    if(idx_q[0] >= X_WIDTH)begin  
+function calc_num_gates();  
+  int              idx_q[$];              
+  bit              tree[int][];         //For storing info about which nodes have been visited  
+  t_operation      func          = t_operation'(genotype[conn_outputs][0]);       
+  bit[Y_WIDTH-1:0] tree_complete = 0;  
+   
+  for(int i=0; i<Y_WIDTH; i++)begin
+     
+    idx_q.push_front(conn_outputs[i]);  
       
-      //Function of the node currently pointed to  
-      func = t_operation'(genotype[idx_q[0]][0]);
-          
-  
-      //Allocate memory for the dynamic dimension of the tree according to the arity of the gate currently pointed to.  
-      //OBS: only if memory has not been allocated already for this node.  
-      if(tree[idx_q[0]].size() == 0)begin    
-        if(arity_lut[int'(func)] == 1)begin  
-          tree[idx_q[0]]    = new[1];  
-          tree[idx_q[0]][0] = 0;  
-        end else begin  
-          tree[idx_q[0]] = new[2];  
-          foreach(tree[idx_q[0]][i])  
-            tree[idx_q[0]][i] = 0;  
+    //Traverse comb_circuit backwards from its output to its inputs.  
+    //Only nodes that affect the output are added to the tree.  
+    //When all nodes have been added to the tree, exit this while-loop.  
+    while(~tree_complete[i])begin  
+      if(idx_q[0] >= X_WIDTH)begin  
+        
+        //Function of the node currently pointed to  
+        func = t_operation'(genotype[idx_q[0]][0]);
+            
+    
+        //Allocate memory for the dynamic dimension of the tree according to the arity of the gate currently pointed to.  
+        //OBS: only if memory has not been allocated already for this node.  
+        if(tree[idx_q[0]].size() == 0)begin    
+          if(arity_lut[int'(func)] == 1)begin  
+            tree[idx_q[0]]    = new[1];  
+            tree[idx_q[0]][0] = 0;  
+          end else begin  
+            tree[idx_q[0]] = new[2];  
+            foreach(tree[idx_q[0]][i])  
+              tree[idx_q[0]][i] = 0;  
+          end  
         end  
-      end  
-           
-      //If unvisited nodes exist in the backward direction in the circuit, traverse backwards.  
-      //If all nodes in the backward direction from the current node have been visited,  
-      //traverse forwards in the circuit (towards output).  
-      if(tree[idx_q[0]][0] == 0)begin  
-        tree[idx_q[0]][0] = 1;  
-        idx_q.push_front(genotype[idx_q[0]][1]);  
-      end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin  
-        tree[idx_q[0]][1] = 1;  
-        idx_q.push_front(genotype[idx_q[0]][2]);  
-      end else begin  
-        if(idx_q[1] == conn_outputs && tree[idx_q[1]].and() == 1)  
-          tree_complete = 1;  
+             
+        //If unvisited nodes exist in the backward direction in the circuit, traverse backwards.  
+        //If all nodes in the backward direction from the current node have been visited,  
+        //traverse forwards in the circuit (towards output).  
+        if(tree[idx_q[0]][0] == 0)begin  
+          tree[idx_q[0]][0] = 1;  
+          idx_q.push_front(genotype[idx_q[0]][1]);  
+        end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin  
+          tree[idx_q[0]][1] = 1;  
+          idx_q.push_front(genotype[idx_q[0]][2]);  
+        end else begin  
+          if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
+            tree_complete[i] = 1;  
+          else  
+            idx_q.delete(0);  
+        end  
+      end else if(idx_q[0] < X_WIDTH)begin  
+        if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
+            tree_complete[i] = 1;  
         else  
           idx_q.delete(0);  
-      end  
-    end else if(idx_q[0] < X_WIDTH)begin  
-      if(idx_q[1] == conn_outputs && tree[idx_q[1]].and() == 1)  
-          tree_complete = 1;  
-      else  
-        idx_q.delete(0);  
-    end   
-  end  
+      end   
+    end  
+    
+  end
   
   //Check all nodes present in tree. All functions except "wire" increase the gate count  
   foreach(tree[i])begin  
@@ -246,7 +251,6 @@ function int calc_num_gates();
       num_gates = num_gates + 1;  
   end  
     
-  return num_gates;  
 endfunction: calc_num_gates  
 
  

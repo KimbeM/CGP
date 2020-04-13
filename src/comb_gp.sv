@@ -12,10 +12,11 @@ module comb_gp;
   
   bit[X_WIDTH-1:0]     X;
   bit[Y_WIDTH-1:0]     Y;
+  bit[Y_WIDTH-1:0]     Y_EXP             = 0; //Expected output
   
   int                  L1_norm           = 0; //Sum of absolute deviations
-  int                  parent_fitness    = 0;
-  int                  offspring_fitness = 0;
+  //int                  offspring_fitness = 0;
+  //int                  parent_fitness    = 0;
   int                  num_generations   = 100000;  
   bit                  solution_exists   = 0;
   
@@ -23,6 +24,11 @@ module comb_gp;
   comb_circuit         offspring;
   comb_circuit         best_solution;
   
+  function bit[Y_WIDTH-1:0] get_expected_y(bit[X_WIDTH-1:0] X);
+    bit[Y_WIDTH-1:0] Y;
+    Y = X + 1; //Fitness function
+    return Y;
+  endfunction: get_expected_y  
   
 
 initial begin
@@ -30,6 +36,8 @@ initial begin
   //Instantiate population of combinatorial circuits
   foreach(population[i])
     population[i] = new();
+
+  best_solution = new();            //Create "dummy" best solution object
 
 
   //Initialization phase
@@ -45,86 +53,68 @@ initial begin
   
  
   //Main 
-  for(int i=0; i<=num_generations; i++)begin
+  for(int gen=0; gen<=num_generations; gen++)begin
     foreach(population[i])begin
      
       if(i == 0)begin
         $display("\n");
-        $display("GENERATION NUMBER: %3d", i);
+        $display("GENERATION NUMBER: %3d", gen);
         $display("\n");
       end    
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+      L1_norm = 0;
     
       //Evaluate fitness
       for(int j=0; j<=2**X_WIDTH-1; j++)begin
         X <= j;
         #1;
-        Y = population[i].evaluate_fitness(X);
-        if(EXP_OUTPUTS[j] == Y)begin
-          num_pass = num_pass + 1;
-        end 
+        Y_EXP   = get_expected_y(X); 
+        Y       = population[i].evaluate_outputs(X);
+        L1_norm = L1_norm + abs(Y - Y_EXP); 
+        population[i].fitness = L1_norm;
       end
       
-      parent_fitness = num_pass;
+      //parent_fitness = L1_norm;
       
-      if(num_pass != 2**X_WIDTH)begin
-        $display("Number of tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**X_WIDTH);
-      end else begin
-        $display("All tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**X_WIDTH);
-        num_gates = population[i].calc_num_gates();
-        if(solution_exists == 1)begin
-          if(best_solution.num_gates > num_gates)begin
-            best_solution = population[i].copy();
-            $display("An improved solution found in generation %2d, genotype %2d. Number of gates is %2d", x, i, num_gates);
-            $display("Breakpoint here");
-          end
-        end else begin
-          solution_exists = 1;
-          best_solution = population[i].copy();
-          $display("First viable solution found in generation %2d, genotype %2d. Number of gates is %2d", x, i, num_gates);
-        end
-        if(best_solution.num_gates < 4)
+      if(population[i].fitness > 0)begin
+        $display("Fitness for genotype nr %2d: %2d", i, population[i].fitness); 
+      end else if(best_solution.fitness > population[i].fitness)begin 
+        best_solution = population[i].copy();
+        if(best_solution.fitness == 0)begin
+          best_solution.calc_num_gates();
+          $display("Solution found in generation %2d, genotype %2d with %2d gates", gen, i, best_solution.num_gates); 
           $stop;
-      end
+        end else begin
+          $display("An improved solution found in generation %2d, genotype %2d. Fitness is %2d", gen, i, best_solution.fitness);              
+        end        
+      end 
       
-      num_pass = 0;
+
+      
 
       //Create mutated offspring.
-      offspring =new();
+      offspring = new();
       offspring = population[i].copy(); 
       offspring.mutate();
       
+      L1_norm = 0;
+    
       //Evaluate fitness
       for(int j=0; j<=2**X_WIDTH-1; j++)begin
         X <= j;
         #1;
-        Y = offspring.evaluate_fitness(X);
-        if(EXP_OUTPUTS[j] == Y)begin
-          num_pass = num_pass + 1;
-        end 
-      end      
+        Y_EXP   = get_expected_y(X); 
+        Y       = population[i].evaluate_outputs(X);
+        L1_norm = L1_norm + abs(Y - Y_EXP); 
+        offspring.fitness = L1_norm;
+      end     
 
-      offspring_fitness = num_pass;     
+      //offspring.fitness = L1_norm;     
 
       //If fitness for offspring is equal or better than for parent, 
       //replace parent with offspring.
-      if(parent_fitness <= offspring_fitness)
-        population[i] = offspring;
-      
-      num_pass = 0;
-      
+      if(population[i].fitness >= offspring.fitness)
+        population[i] = offspring;      
       
     end  
   end
