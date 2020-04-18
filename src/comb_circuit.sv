@@ -6,7 +6,7 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
   int         genotype[X_WIDTH:(X_WIDTH + NUM_ROWS * NUM_COLS)-1][];
   int         node_arity[X_WIDTH:(X_WIDTH + NUM_COLS*NUM_ROWS)-1];
   bit         eval_outputs[(X_WIDTH + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
-  int         conn_outputs[Y_WIDTH];
+  int         conn_outputs[Y_WIDTH-1:0];
   int         num_gates;
   int         fitness = 100;      //Initialize with arbitrarily high number for bad fitness ;
 

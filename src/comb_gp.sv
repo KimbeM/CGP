@@ -88,9 +88,6 @@ initial begin
           $display("An improved solution found in generation %2d, genotype %2d. Fitness is %2d", gen, i, best_solution.fitness);              
         end        
       end 
-      
-
-      
 
       //Create mutated offspring.
       offspring = new();
@@ -104,12 +101,10 @@ initial begin
         X <= j;
         #1;
         Y_EXP   = get_expected_y(X); 
-        Y       = population[i].evaluate_outputs(X);
+        Y       = offspring.evaluate_outputs(X);
         L1_norm = L1_norm + abs(Y - Y_EXP); 
         offspring.fitness = L1_norm;
       end     
-
-      //offspring.fitness = L1_norm;     
 
       //If fitness for offspring is equal or better than for parent, 
       //replace parent with offspring.
