@@ -123,7 +123,7 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
       out_matches     = conn_outputs.find_index with (item == i);
       if($size(out_matches) > 0)begin
         foreach(out_matches[j])
-          Y[j] = eval_outputs[i];
+          Y[out_matches[j]] = eval_outputs[i];
         Y_evaluated = Y_evaluated + $size(out_matches); 
         if(Y_evaluated == Y_WIDTH)
           break;                    //Break loop when all bits of output Y have been evaluated
@@ -250,6 +250,8 @@ function calc_num_gates();
     if(t_operation'(genotype[i][0]) != WIRE)        
       num_gates = num_gates + 1;  
   end  
+  foreach(conn_outputs[i])
+    $display("Output Y[%1d]: %d", i, conn_outputs[i]); 
     
 endfunction: calc_num_gates  
 

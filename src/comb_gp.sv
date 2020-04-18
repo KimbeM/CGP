@@ -15,8 +15,7 @@ module comb_gp;
   bit[Y_WIDTH-1:0]     Y_EXP             = 0; //Expected output
   
   int                  L1_norm           = 0; //Sum of absolute deviations
-  //int                  offspring_fitness = 0;
-  //int                  parent_fitness    = 0;
+  int                  mean_fitness      = 0;
   int                  num_generations   = 100000;  
   bit                  solution_exists   = 0;
   
@@ -26,7 +25,7 @@ module comb_gp;
   
   function bit[Y_WIDTH-1:0] get_expected_y(bit[X_WIDTH-1:0] X);
     bit[Y_WIDTH-1:0] Y;
-    Y = X + 1; //Fitness function
+    Y = X; //Fitness function
     return Y;
   endfunction: get_expected_y  
   
@@ -71,13 +70,14 @@ initial begin
         Y_EXP   = get_expected_y(X); 
         Y       = population[i].evaluate_outputs(X);
         L1_norm = L1_norm + abs(Y - Y_EXP); 
-        population[i].fitness = L1_norm;
       end
+      
+      population[i].fitness = L1_norm;
       
       //parent_fitness = L1_norm;
       
       if(population[i].fitness > 0)begin
-        $display("Fitness for genotype nr %2d: %2d", i, population[i].fitness); 
+        //$display("Fitness for genotype nr %2d: %2d", i, population[i].fitness); 
       end else if(best_solution.fitness > population[i].fitness)begin 
         best_solution = population[i].copy();
         if(best_solution.fitness == 0)begin
@@ -103,15 +103,22 @@ initial begin
         Y_EXP   = get_expected_y(X); 
         Y       = offspring.evaluate_outputs(X);
         L1_norm = L1_norm + abs(Y - Y_EXP); 
-        offspring.fitness = L1_norm;
       end     
+      
+      offspring.fitness = L1_norm;
+      
 
       //If fitness for offspring is equal or better than for parent, 
       //replace parent with offspring.
       if(population[i].fitness >= offspring.fitness)
         population[i] = offspring;      
       
+      
     end  
+    mean_fitness = 0;
+    for(int i=0; i<POPUL_SIZE; i++)
+      mean_fitness = mean_fitness + population[i].fitness;
+    $display("Mean fitness: %d", mean_fitness/POPUL_SIZE);    
   end
 end 
 
