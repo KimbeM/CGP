@@ -1,13 +1,15 @@
 class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK, NUM_MUTAT);
-  typedef enum int {WIRE = 0, NOT = 1, AND = 2, OR = 3, XOR = 4} t_operation;
+  typedef enum int {DFF = 0, WIRE = 1, NOT = 2, AND = 3, OR = 4, XOR = 5} t_operation;
   
-  parameter int     arity_lut[5] = {1, 1, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
+  parameter int     arity_lut[6] = {1, 1, 1, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
   
   int         genotype[X_WIDTH:(X_WIDTH + NUM_ROWS * NUM_COLS)-1][];
   int         node_arity[X_WIDTH:(X_WIDTH + NUM_COLS*NUM_ROWS)-1];
   bit         eval_outputs[(X_WIDTH + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
+  bit         registers[int];
   int         conn_outputs[Y_WIDTH-1:0];
   int         num_gates;
+  int         num_regs;
   int         fitness = 100;      //Initialize with arbitrarily high number for bad fitness ;
 
   function new();
@@ -99,6 +101,14 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
       input_A = eval_outputs[genotype[idx][1]]; 
       if(genotype[idx][0] == WIRE)begin
         out   = input_A;
+      end else if(genotype[idx][0] == DFF)begin
+        if(registers.exists(idx))begin
+          out            = registers[idx];
+          registers[idx] = input_A;
+        end else begin
+          registers[idx] = input_A;
+          out            = 0;  //Assume that all registers are initialized with value 0
+        end
       end else if(genotype[idx][0] == NOT) begin
         out   = ~input_A;
       end
@@ -111,12 +121,12 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
     bit[Y_WIDTH-1:0] Y;
     int Y_evaluated = 0; //Counter to indicate how many bits of output Y have been evaluated
     int out_matches[$];  //Amount of matches indicate how many bits of the output Y are driven by currently evaluated node
-  
+    
     //First column of eval_outputs = comb circuit input  
     for(int i=0; i<X_WIDTH; i++)begin
       eval_outputs[i] = X[i];
     end
-    
+        
     //Evaluate outputs for comb circuit nodes
     for(int i=X_WIDTH; i<NUM_ROWS * NUM_COLS + X_WIDTH; i++)begin
       eval_outputs[i] = evaluate_node_output(i);
@@ -133,8 +143,15 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
   
     return Y;
   endfunction: evaluate_outputs 
+  
+  function void clear_registers();
+  
+    foreach(registers[i])
+      registers[i] = 0;
+  
+  endfunction: clear_registers
 
-  function mutate();
+  function void mutate();
     int         mut_nodes[NUM_MUTAT];
     int         conn;
     int         conn_prev;
@@ -147,15 +164,15 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
   
     //Randomize functions for the chosen nodes
     for(int i=0; i<NUM_MUTAT; i++)begin
-      genotype[i][0] = $urandom_range(0, $size(arity_lut)-1);
-      node_arity[i]  = arity_lut[genotype[i][0]];
+      genotype[i + X_WIDTH][0] = $urandom_range(0, $size(arity_lut)-1);
+      node_arity[i + X_WIDTH]  = arity_lut[genotype[i][0]];
     end    
     
     //Randomize connections for mutation nodes
     //If arity = 2, ensure that connections are from different nodes
     for(int i=0; i<NUM_ROWS; i++)begin
       for(int j=0; j<NUM_COLS; j++)begin
-        if(mut_nodes[idx] == i + (j * NUM_ROWS))begin
+        if(mut_nodes[idx] == i + (j * NUM_ROWS) + X_WIDTH)begin
           idx = idx + 1;
           for(int k=0; k<node_arity[i + (j * NUM_ROWS) + X_WIDTH]; k++)begin
             if(k == 1)      
@@ -163,13 +180,13 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
             do begin      
               if(j == 0)begin      
                 conn               = $urandom_range(0, X_WIDTH-1);      
-                genotype[i+X_WIDTH][k+1]   = conn;      
+                genotype[i + X_WIDTH][k+1]   = conn;      
               end else if(j < LEVELS_BACK)begin      
                 conn                              = $urandom_range(0, X_WIDTH+(j*NUM_ROWS)-1);      
-                genotype[i + X_WIDTH + (NUM_ROWS * j)][k+1] = conn;      
+                genotype[i + X_WIDTH + (NUM_ROWS * j)][k+1] = conn; 
               end else begin      
                 conn                             = $urandom_range(X_WIDTH+((j-LEVELS_BACK)*NUM_ROWS), X_WIDTH+(j*NUM_ROWS)-1);      
-                genotype[i + X_WIDTH + (NUM_ROWS * j)][k+1] = conn;      
+                genotype[i + X_WIDTH + (NUM_ROWS * j)][k+1] = conn;    
               end      
             end while(conn == conn_prev && k == 1); 
           end
@@ -183,7 +200,7 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
     
   endfunction: mutate  
   
-function calc_num_gates();  
+function void calc_resource_util();  
   int              idx_q[$];              
   bit              tree[int][];         //For storing info about which nodes have been visited  
   t_operation      func          = t_operation'(genotype[conn_outputs][0]);       
@@ -247,13 +264,15 @@ function calc_num_gates();
       $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
     else
       $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);   
-    if(t_operation'(genotype[i][0]) != WIRE)        
+    if(t_operation'(genotype[i][0]) != WIRE && t_operation'(genotype[i][0]) != DFF)        
       num_gates = num_gates + 1;  
+    if(t_operation'(genotype[i][0]) == DFF)
+      num_regs  = num_regs + 1;
   end  
   foreach(conn_outputs[i])
     $display("Output Y[%1d]: %d", i, conn_outputs[i]); 
     
-endfunction: calc_num_gates  
+endfunction: calc_resource_util  
 
  
 endclass: comb_circuit
