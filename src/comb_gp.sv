@@ -16,7 +16,9 @@ module comb_gp;
   
   int                  L1_norm           = 0; //Sum of absolute deviations
   int                  mean_fitness      = 0;
-  int                  num_generations   = 100000;  
+  int                  mean_fitness_prev = 0;
+  int                  fitness_cnt       = 0;
+  int                  num_generations   = 1000000;  
   bit                  solution_exists   = 0;
   
   comb_circuit         population[POPUL_SIZE];
@@ -25,7 +27,7 @@ module comb_gp;
   
   function bit[Y_WIDTH-1:0] get_expected_y(bit[X_WIDTH-1:0] X);
     bit[Y_WIDTH-1:0] Y;
-    Y = X; //Fitness function
+    Y = X+1; //Fitness function
     return Y;
   endfunction: get_expected_y  
   
@@ -114,11 +116,27 @@ initial begin
         population[i] = offspring;      
       
       
+      
     end  
-    mean_fitness = 0;
+    
+    mean_fitness_prev = mean_fitness;
+    mean_fitness      = 0;
     for(int i=0; i<POPUL_SIZE; i++)
       mean_fitness = mean_fitness + population[i].fitness;
-    $display("Mean fitness: %d", mean_fitness/POPUL_SIZE);    
+    mean_fitness = mean_fitness/POPUL_SIZE;
+    
+    $display("Mean fitness: %d", mean_fitness);    
+    
+    if(mean_fitness >= mean_fitness_prev)
+      fitness_cnt = fitness_cnt + 1;
+    else
+      fitness_cnt = 0;
+      
+    if(fitness_cnt == 2000)begin
+      foreach(population[i])
+        population[i] = new();      
+    end
+  
   end
 end 
 
