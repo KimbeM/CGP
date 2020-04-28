@@ -165,7 +165,7 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
     //Randomize functions for the chosen nodes
     for(int i=0; i<NUM_MUTAT; i++)begin
       genotype[i + X_WIDTH][0] = $urandom_range(0, $size(arity_lut)-1);
-      node_arity[i + X_WIDTH]  = arity_lut[genotype[i][0]];
+      node_arity[i + X_WIDTH]  = arity_lut[genotype[i + X_WIDTH][0]];
     end    
     
     //Randomize connections for mutation nodes
