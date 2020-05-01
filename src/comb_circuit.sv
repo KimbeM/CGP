@@ -23,7 +23,10 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
     copy.node_arity   = this.node_arity;  
     copy.genotype     = this.genotype;  
     copy.eval_outputs = this.eval_outputs;  
-    copy.conn_outputs = this.conn_outputs;  
+    copy.conn_outputs = this.conn_outputs; 
+    copy.registers    = this.registers;
+    copy.num_gates    = this.num_gates;
+    copy.num_regs     = this.num_regs;    
     copy.fitness      = this.fitness;  
     return copy;  
   endfunction    
@@ -159,13 +162,13 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
   
     //Randomize which nodes get mutated
     for(int i=0; i<NUM_MUTAT; i++)begin
-      mut_nodes[i] = $urandom_range(X_WIDTH, NUM_ROWS * NUM_COLS + X_WIDTH);
+      mut_nodes[i] = $urandom_range(X_WIDTH, NUM_ROWS * NUM_COLS + X_WIDTH-1);
     end
   
     //Randomize functions for the chosen nodes
     for(int i=0; i<NUM_MUTAT; i++)begin
       genotype[i + X_WIDTH][0] = $urandom_range(0, $size(arity_lut)-1);
-      node_arity[i + X_WIDTH]  = arity_lut[genotype[i + X_WIDTH][0]];
+      node_arity[mut_nodes[i]]  = arity_lut[genotype[mut_nodes[i]][0]];
     end    
     
     //Randomize connections for mutation nodes
@@ -197,7 +200,7 @@ class comb_circuit #(parameter X_WIDTH, Y_WIDTH, NUM_ROWS, NUM_COLS, LEVELS_BACK
         if(idx == NUM_MUTAT)
           break; 
     end 
-    
+
   endfunction: mutate  
   
 function void calc_resource_util();  

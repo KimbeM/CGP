@@ -83,10 +83,10 @@ initial begin
       L1_norm = L1_norm + abs(Y - Y_EXP);      
       #1;
       
-      //Next four clock cycles      
+      //Next five clock cycles      
       X = 0;
-      for(int j=0; j<4; j++)begin
-        if(j==0)
+      for(int j=0; j<5; j++)begin
+        if(j < 2)
           Y_EXP = 1;
         else
           Y_EXP = 0;
@@ -97,14 +97,13 @@ initial begin
       
       
       population[i].fitness = L1_norm;
-      
-      //parent_fitness = L1_norm;
-      
-      if(population[i].fitness > 0)begin
+            
+      //if(population[i].fitness > 0)
         //$display("Fitness for genotype nr %2d: %2d", i, population[i].fitness); 
-      end else if(best_solution.fitness > population[i].fitness)begin 
+        
+      if(best_solution.fitness > population[i].fitness)begin 
         best_solution = population[i].copy();
-        if(best_solution.fitness == 0)begin
+        if(best_solution.fitness <= 0)begin
           best_solution.calc_resource_util();
           $display("Solution found in generation %2d, genotype %2d with %2d gates and %2d registers", gen, i, best_solution.num_gates, best_solution.num_regs); 
           $stop;
@@ -114,7 +113,7 @@ initial begin
       end 
 
       //Create mutated offspring.
-      offspring = new();
+      //offspring = new();
       offspring = population[i].copy(); 
       offspring.clear_registers();
       offspring.mutate();
@@ -133,19 +132,19 @@ initial begin
       // First clock cycle
       X       = 1;
       Y_EXP   = 0;
-      Y       = population[i].evaluate_outputs(X);
+      Y       = offspring.evaluate_outputs(X);
       L1_norm = L1_norm + abs(Y - Y_EXP);      
       #1;
       
-      //Next four clock cycles      
+      //Next five clock cycles      
       X = 0;
-      for(int j=0; j<4; j++)begin
-        if(j==0)
+      for(int j=0; j<5; j++)begin
+        if(j < 2)
           Y_EXP = 1;
         else
           Y_EXP = 0;
-        Y       = population[i].evaluate_outputs(X);
-        L1_norm = L1_norm + abs(Y - Y_EXP); 
+        Y       = offspring.evaluate_outputs(X);
+        L1_norm = L1_norm + abs(Y - Y_EXP);   
         #1;        
       end
  
@@ -154,20 +153,19 @@ initial begin
 
       //If fitness for offspring is equal or better than for parent, 
       //replace parent with offspring.
-      if(population[i].fitness >= offspring.fitness || $urandom_range(0,9) == 0)
-        population[i] = offspring;    
-      
-      
-      
+      if(population[i].fitness >= offspring.fitness || $urandom_range(0,4) == 0)
+        population[i] = offspring.copy();    
+         
     end  
     
-    mean_fitness_prev = mean_fitness;
-    mean_fitness      = 0;
-    for(int i=0; i<POPUL_SIZE; i++)
-      mean_fitness = mean_fitness + population[i].fitness;
-    mean_fitness = mean_fitness/POPUL_SIZE;
-    
-    $display("Mean fitness: %d", mean_fitness);    
+    //mean_fitness_prev = mean_fitness;
+    //mean_fitness      = 0;
+    //for(int i=0; i<POPUL_SIZE; i++)
+    //  mean_fitness = mean_fitness + population[i].fitness;
+    //mean_fitness = mean_fitness/POPUL_SIZE;
+    //
+    //$display("Mean fitness: %d", mean_fitness);    
+    $display("Best fitness: %d", best_solution.fitness);
     
     //if(mean_fitness >= mean_fitness_prev)
     //  fitness_cnt = fitness_cnt + 1;
