@@ -2,28 +2,34 @@ module comb_gp;
   timeunit 1ns;
   import comb_gp_pkg::*;
   
-  parameter           NUM_INPUTS;
-  parameter           EXP_OUTPUTS;
-  parameter           NUM_ROWS;
-  parameter           NUM_COLS;
-  parameter           LEVELS_BACK;
-  parameter           POPUL_SIZE;
-  parameter           NUM_MUTAT;
+  parameter            X_WIDTH;
+  parameter            Y_WIDTH;
+  parameter            NUM_ROWS;
+  parameter            NUM_COLS;
+  parameter            LEVELS_BACK;
+  parameter            POPUL_SIZE;
+  parameter            NUM_MUTAT;
   
-  bit[NUM_INPUTS-1:0] INPUTS;
-  bit                 OUT;
+  bit[X_WIDTH-1:0]     X;
+  bit[Y_WIDTH-1:0]     Y;
+  bit[Y_WIDTH-1:0]     Y_EXP             = 0; //Expected output
   
-  int                 num_pass          = 0;
-  int                 num_gates         = 0;
-  int                 parent_fitness    = 0;
-  int                 offspring_fitness = 0;
-  int                 num_generations   = 100000;  
-  bit                 solution_exists   = 0;
+  int                  L1_norm           = 0; //Sum of absolute deviations
+  int                  mean_fitness      = 0;
+  int                  mean_fitness_prev = 0;
+  int                  fitness_cnt       = 0;
+  int                  num_generations   = 1000000;  
+  bit                  solution_exists   = 0;
   
-  comb_circuit        population[POPUL_SIZE];
-  comb_circuit        offspring;
-  comb_circuit        best_solution;
+  comb_circuit         population[POPUL_SIZE];
+  comb_circuit         offspring;
+  comb_circuit         best_solution;
   
+  function bit[Y_WIDTH-1:0] get_expected_y(bit[X_WIDTH-1:0] X);
+    bit[Y_WIDTH-1:0] Y;
+    Y = X+1; //Fitness function
+    return Y;
+  endfunction: get_expected_y  
   
 
 initial begin
@@ -32,86 +38,145 @@ initial begin
   foreach(population[i])
     population[i] = new();
 
+  best_solution = new();            //Create "dummy" best solution object
+
 
   //Initialization phase
-  assert (NUM_INPUTS  > 0 && NUM_INPUTS  < 6)                  else $fatal ("FAILURE! NUMBER OF INPUTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
+  assert (X_WIDTH  > 0 && X_WIDTH  < 6)                        else $fatal ("FAILURE! WIDTH OF X HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
+  assert (Y_WIDTH  > 0 && Y_WIDTH  < 6)                        else $fatal ("FAILURE! WIDTH OF Y HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
   assert (NUM_ROWS    > 0 && NUM_ROWS    < 17)                 else $fatal ("FAILURE! NUMBER OF ROWS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (NUM_COLS    > 0 && NUM_COLS    < 17)                 else $fatal ("FAILURE! NUMBER OF COLUMNS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (LEVELS_BACK > 0 && LEVELS_BACK <= NUM_COLS)          else $fatal ("FAILURE! LEVELS BACK HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUM_COLS)");
   assert (NUM_MUTAT   > 0 && NUM_MUTAT <= NUM_ROWS * NUM_COLS) else $fatal ("FAILURE! NUMBER OF MUTATIONS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUMBER OF NODES)");
   assert (POPUL_SIZE  > 0)                                     else $fatal ("FAILURE! POPULATION SIZE MUST BE LARGER THAN 0");
 
+
+  
  
   //Main 
-  for(int x=0; x<=num_generations; x++)begin
+  for(int gen=0; gen<=num_generations; gen++)begin
     foreach(population[i])begin
      
       if(i == 0)begin
         $display("\n");
-        $display("GENERATION NUMBER: %3d", x);
+        $display("GENERATION NUMBER: %3d", gen);
         $display("\n");
       end    
     
+      L1_norm = 0;
+    
+      population[i].clear_registers();
+    
       //Evaluate fitness
-      for(int j=0; j<=2**NUM_INPUTS-1; j++)begin
-        INPUTS <= j;
-        #1;
-        OUT = population[i].evaluate_fitness(INPUTS);
-        if(EXP_OUTPUTS[j] == OUT)begin
-          num_pass = num_pass + 1;
-        end 
+      //for(int j=0; j<=2**X_WIDTH-1; j++)begin
+      //  X <= j;
+      //  #1;
+      //  Y_EXP   = get_expected_y(X); 
+      //  Y       = population[i].evaluate_outputs(X);
+      //  L1_norm = L1_norm + abs(Y - Y_EXP); 
+      //end
+      
+      // First clock cycle
+      X       = 1;
+      Y_EXP   = 0;
+      Y       = population[i].evaluate_outputs(X);
+      L1_norm = L1_norm + abs(Y - Y_EXP);      
+      #1;
+      
+      //Next five clock cycles      
+      X = 0;
+      for(int j=0; j<5; j++)begin
+        if(j < 2)
+          Y_EXP = 1;
+        else
+          Y_EXP = 0;
+        Y       = population[i].evaluate_outputs(X);
+        L1_norm = L1_norm + abs(Y - Y_EXP);   
+        #1;        
       end
       
-      parent_fitness = num_pass;
       
-      if(num_pass != 2**NUM_INPUTS)begin
-        $display("Number of tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**NUM_INPUTS);
-      end else begin
-        $display("All tests passed for genotype nr %2d: %2d /%2d", i, num_pass, 2**NUM_INPUTS);
-        num_gates = population[i].calc_num_gates();
-        if(solution_exists == 1)begin
-          if(best_solution.num_gates > num_gates)begin
-            best_solution = population[i].copy();
-            $display("An improved solution found in generation %2d, genotype %2d. Number of gates is %2d", x, i, num_gates);
-            $display("Breakpoint here");
-          end
-        end else begin
-          solution_exists = 1;
-          best_solution = population[i].copy();
-          $display("First viable solution found in generation %2d, genotype %2d. Number of gates is %2d", x, i, num_gates);
-        end
-        if(best_solution.num_gates < 4)
+      population[i].fitness = L1_norm;
+            
+      //if(population[i].fitness > 0)
+        //$display("Fitness for genotype nr %2d: %2d", i, population[i].fitness); 
+        
+      if(best_solution.fitness > population[i].fitness)begin 
+        best_solution = population[i].copy();
+        if(best_solution.fitness <= 0)begin
+          best_solution.calc_resource_util();
+          $display("Solution found in generation %2d, genotype %2d with %2d gates and %2d registers", gen, i, best_solution.num_gates, best_solution.num_regs); 
           $stop;
-      end
-      
-      num_pass = 0;
+        end else begin
+          $display("An improved solution found in generation %2d, genotype %2d. Fitness is %2d", gen, i, best_solution.fitness);              
+        end        
+      end 
 
       //Create mutated offspring.
-      offspring =new();
+      //offspring = new();
       offspring = population[i].copy(); 
+      offspring.clear_registers();
       offspring.mutate();
       
+      L1_norm = 0;
+    
       //Evaluate fitness
-      for(int j=0; j<=2**NUM_INPUTS-1; j++)begin
-        INPUTS <= j;
-        #1;
-        OUT = offspring.evaluate_fitness(INPUTS);
-        if(EXP_OUTPUTS[j] == OUT)begin
-          num_pass = num_pass + 1;
-        end 
-      end      
-
-      offspring_fitness = num_pass;     
+      //for(int j=0; j<=2**X_WIDTH-1; j++)begin
+      //  X <= j;
+      //  #1;
+      //  Y_EXP   = get_expected_y(X); 
+      //  Y       = offspring.evaluate_outputs(X);
+      //  L1_norm = L1_norm + abs(Y - Y_EXP); 
+      //end     
+      
+      // First clock cycle
+      X       = 1;
+      Y_EXP   = 0;
+      Y       = offspring.evaluate_outputs(X);
+      L1_norm = L1_norm + abs(Y - Y_EXP);      
+      #1;
+      
+      //Next five clock cycles      
+      X = 0;
+      for(int j=0; j<5; j++)begin
+        if(j < 2)
+          Y_EXP = 1;
+        else
+          Y_EXP = 0;
+        Y       = offspring.evaluate_outputs(X);
+        L1_norm = L1_norm + abs(Y - Y_EXP);   
+        #1;        
+      end
+ 
+      offspring.fitness = L1_norm;
+      
 
       //If fitness for offspring is equal or better than for parent, 
       //replace parent with offspring.
-      if(parent_fitness <= offspring_fitness)
-        population[i] = offspring;
-      
-      num_pass = 0;
-      
-      
+      if(population[i].fitness >= offspring.fitness || $urandom_range(0,4) == 0)
+        population[i] = offspring.copy();    
+         
     end  
+    
+    //mean_fitness_prev = mean_fitness;
+    //mean_fitness      = 0;
+    //for(int i=0; i<POPUL_SIZE; i++)
+    //  mean_fitness = mean_fitness + population[i].fitness;
+    //mean_fitness = mean_fitness/POPUL_SIZE;
+    //
+    //$display("Mean fitness: %d", mean_fitness);    
+    $display("Best fitness: %d", best_solution.fitness);
+    
+    //if(mean_fitness >= mean_fitness_prev)
+    //  fitness_cnt = fitness_cnt + 1;
+    //else
+    //  fitness_cnt = 0;
+    //  
+    //if(fitness_cnt == 2000)begin
+    //  foreach(population[i])
+    //    population[i] = new();      
+    //end
+  
   end
 end 
 
