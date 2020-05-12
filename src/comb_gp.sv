@@ -109,11 +109,11 @@ initial begin
       // First clock cycle
       X[0]       = 1;
       Y_EXP[0]   = 0;
-      Y       = population[i].evaluate_outputs(X);
+      Y       = offspring.evaluate_outputs(X);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);      
       #1;
       
-      //Next five clock cycles      
+      //Next three clock cycles      
       X[0] = 0;
       for(int j=0; j<3; j++)begin
         if(j < 3)
