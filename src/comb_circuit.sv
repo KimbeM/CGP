@@ -92,6 +92,10 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     foreach(conn_outputs[i])
       conn_outputs[i] = $urandom_range((NUM_COLS-LEVELS_BACK)*NUM_ROWS + NUM_INPUTS, (NUM_COLS*NUM_ROWS) + NUM_INPUTS - 1);    
     
+    //Debugging
+    foreach(genotype[i])
+      assert(node_arity[i]  == arity_lut[genotype[i][0]]) else $fatal ("FAILURE IN COMB CIRCUIT randomize_connections()!");
+    
   endfunction: randomize_connections   
 
   function int evaluate_node_output(int idx);
@@ -158,8 +162,11 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         foreach(out_matches[j])
           Y[out_matches[j]] = eval_outputs[i];
         Y_evaluated = Y_evaluated + $size(out_matches); 
-        if(Y_evaluated == NUM_OUTPUTS)
+        if(Y_evaluated == NUM_OUTPUTS)begin
+          //Debugging 
+          assert(int'(conn_outputs.max()) == i) else $fatal ("FAILURE IN COMB CIRCUIT evaluate_outputs()! Max output = %d, i=%d", int'(conn_outputs.max()), i);
           break;                    //Break loop when all outputs Y have been evaluated
+        end
       end
       out_matches.delete(); //Clear queue
     end
@@ -190,7 +197,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     foreach(mut_nodes[i])begin
       if(mut_nodes[i] < conn_out_offset)begin
         if(t_operation'(genotype[mut_nodes[i]][0]) == DFF)
-          registers.delete(mut_nodes[i]); //Function of this node no longer registers
+          registers.delete(mut_nodes[i]); //Function of this node no longer register
         if(t_operation'(genotype[mut_nodes[i]][0]) == CONST)
           constants.delete(mut_nodes[i]); //Function of this node no longer constant
         genotype[mut_nodes[i]][0] = $urandom_range(0, $size(arity_lut)-1);
@@ -234,7 +241,17 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     foreach(mut_nodes[i])begin
       if(mut_nodes[i] >= conn_out_offset)
         conn_outputs[mut_nodes[i] - conn_out_offset] = $urandom_range((NUM_COLS-LEVELS_BACK)*NUM_ROWS + NUM_INPUTS, (NUM_COLS*NUM_ROWS) + NUM_INPUTS - 1); 
-    end        
+    end    
+
+    //Debugging
+    foreach(genotype[i])
+      assert(node_arity[i]  == arity_lut[genotype[i][0]]) else $fatal ("FAILURE IN COMB CIRCUIT mutate()! Node arity does not match arity lut");    
+    
+    //Debugging
+    foreach(genotype[i])begin
+      if(node_arity[i]  == 2)
+        assert(genotype[i][1] != genotype[i][2]) else $fatal ("FAILURE IN COMB CIRCUIT mutate()! Both inputs from same node");
+    end
 
   endfunction: mutate  
   
