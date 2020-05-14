@@ -23,7 +23,8 @@ module comb_gp;
   bit                  solution_exists   = 0;
   
   comb_circuit         population[POPUL_SIZE];
-  comb_circuit         offspring;
+  comb_circuit         offspring[4];
+  comb_circuit         best_offspring;
   comb_circuit         best_solution;
 
 
@@ -101,38 +102,46 @@ initial begin
       end       
 
       //Create mutated offspring.
-      offspring = population[i].copy(); 
-      offspring.clear_registers();
-      offspring.mutate();
+      foreach(offspring[k])begin
+        offspring[k] = population[i].copy(); 
+        offspring[k].clear_registers();
+        offspring[k].mutate();
       
-      L1_norm = 0;
-
-      // First clock cycle
-      X[0]       = 1;
-      Y_EXP[0]   = 0;
-      Y       = offspring.evaluate_outputs(X);
-      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);      
-      #1;
-      
-      //Next three clock cycles      
-      X[0] = 0;
-      for(int j=0; j<3; j++)begin
-        if(j < 3)
-          Y_EXP[0] = j+2;
-        else
-          Y_EXP[0] = 0;
-        Y       = offspring.evaluate_outputs(X);
-        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
-        #1;        
-      end
+        L1_norm = 0;
+   
+        // First clock cycle
+        X[0]       = 1;
+        Y_EXP[0]   = 0;
+        Y       = offspring[k].evaluate_outputs(X);
+        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);      
+        #1;
+        
+        //Next three clock cycles      
+        X[0] = 0;
+        for(int j=0; j<3; j++)begin
+          if(j < 3)
+            Y_EXP[0] = j+2;
+          else
+            Y_EXP[0] = 0;
+          Y       = offspring[k].evaluate_outputs(X);
+          L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
+          #1;        
+        end
+   
+        offspring[k].fitness = L1_norm;
+   
+        if(k == 0)
+          best_offspring = offspring[k].copy;
+        else if(best_offspring.fitness > offspring[k].fitness)
+          best_offspring = offspring[k].copy;
+   
+      end 
  
-      offspring.fitness = L1_norm;
-      
 
       //If fitness for offspring is equal or better than for parent, 
       //replace parent with offspring.
-      if(population[i].fitness >= offspring.fitness || $urandom_range(0,4) == 0)
-        population[i] = offspring.copy();    
+      if(population[i].fitness >= best_offspring.fitness)
+        population[i] = best_offspring.copy();    
          
     end  
    
