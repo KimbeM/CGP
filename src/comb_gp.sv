@@ -25,13 +25,7 @@ module comb_gp;
   comb_circuit         population[POPUL_SIZE];
   comb_circuit         offspring;
   comb_circuit         best_solution;
-  
- // function bit[NUM_OUTPUTS-1:0] get_expected_y(bit[NUM_INPUTS-1:0] X);
- //   bit[NUM_OUTPUTS-1:0] Y;
- //   Y = X+1; //Fitness function
- //   return Y;
- // endfunction: get_expected_y  
-  
+
 
 initial begin
 
@@ -73,7 +67,7 @@ initial begin
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);      
       #1;
       
-      //Next five clock cycles      
+      //Next three clock cycles      
       X[0] = 0;
       for(int j=0; j<3; j++)begin
         if(j < 3)
@@ -88,16 +82,23 @@ initial begin
       
       population[i].fitness = L1_norm;
 
+      //Replace current best solution with improved solution
       if(best_solution.fitness > population[i].fitness)begin 
         best_solution = population[i].copy();
-        if(best_solution.fitness <= 0)begin
-          best_solution.calc_resource_util();
-          $display("Solution found in generation %2d, genotype %2d with %2d gates, %2d registers, %2d adders and %2d multipliers", gen, i, best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults); 
+        $display("An improved solution found in generation %2d, genotype %2d. Fitness is %2d", gen, i, best_solution.fitness);                      
+      end  
+       
+      
+      if(population[i].fitness == 0)begin
+        population[i].calc_resource_util();
+        population[i].calc_score();
+        if(population[i].score < best_solution.score)begin
+          best_solution = population[i].copy();
+          //$display("Solution found in generation %2d, genotype %2d with %2d gates, %2d registers, %2d adders and %2d multipliers", gen, i, best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults); 
+          $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score);           
           $stop;
-        end else begin
-          $display("An improved solution found in generation %2d, genotype %2d. Fitness is %2d", gen, i, best_solution.fitness);              
-        end        
-      end 
+        end
+      end       
 
       //Create mutated offspring.
       offspring = population[i].copy(); 

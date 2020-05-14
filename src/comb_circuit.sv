@@ -15,6 +15,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   int         num_gates  = 0;
   int         num_regs   = 0;
   int         fitness    = 100;      //Initialize with arbitrarily high number for poor fitness
+  int         score      = 1000;     //Initialize with arbitrarily high number for poor score
 
   function new();
   
@@ -35,6 +36,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     copy.num_gates    = this.num_gates;
     copy.num_regs     = this.num_regs;    
     copy.fitness      = this.fitness;  
+    copy.score        = this.score;
     return copy;  
   endfunction    
   
@@ -255,89 +257,96 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
 
   endfunction: mutate  
   
-function void calc_resource_util();  
-  int              idx_q[$];              
-  bit              tree[int][];         //For storing info about which nodes have been visited  
-  t_operation      func          = t_operation'(genotype[conn_outputs][0]);       
-  bit[NUM_OUTPUTS-1:0] tree_complete = 0;  
-   
-  for(int i=0; i<NUM_OUTPUTS; i++)begin
+  function void calc_resource_util();  
+    int              idx_q[$];              
+    bit              tree[int][];         //For storing info about which nodes have been visited  
+    t_operation      func          = t_operation'(genotype[conn_outputs][0]);       
+    bit[NUM_OUTPUTS-1:0] tree_complete = 0;  
      
-    idx_q.push_front(conn_outputs[i]);  
-      
-    //Traverse comb_circuit backwards from its output to its inputs.  
-    //Only nodes that affect the output are added to the tree.  
-    //When all nodes have been added to the tree, exit this while-loop.  
-    while(~tree_complete[i])begin  
-      if(idx_q[0] >= NUM_INPUTS)begin  
+    for(int i=0; i<NUM_OUTPUTS; i++)begin
+       
+      idx_q.push_front(conn_outputs[i]);  
         
-        //Function of the node currently pointed to  
-        func = t_operation'(genotype[idx_q[0]][0]);
-            
-    
-        //Allocate memory for the dynamic dimension of the tree according to the arity of the gate currently pointed to.  
-        //OBS: only if memory has not been allocated already for this node.  
-        if(tree[idx_q[0]].size() == 0)begin    
-          if(arity_lut[int'(func)] == 1)begin  
-            tree[idx_q[0]]    = new[1];  
-            tree[idx_q[0]][0] = 0;  
-          end else begin  
-            tree[idx_q[0]] = new[2];  
-            foreach(tree[idx_q[0]][i])  
-              tree[idx_q[0]][i] = 0;  
+      //Traverse comb_circuit backwards from its output to its inputs.  
+      //Only nodes that affect the output are added to the tree.  
+      //When all nodes have been added to the tree, exit this while-loop.  
+      while(~tree_complete[i])begin  
+        if(idx_q[0] >= NUM_INPUTS)begin  
+          
+          //Function of the node currently pointed to  
+          func = t_operation'(genotype[idx_q[0]][0]);
+              
+      
+          //Allocate memory for the dynamic dimension of the tree according to the arity of the gate currently pointed to.  
+          //OBS: only if memory has not been allocated already for this node.  
+          if(tree[idx_q[0]].size() == 0)begin    
+            if(arity_lut[int'(func)] == 1)begin  
+              tree[idx_q[0]]    = new[1];  
+              tree[idx_q[0]][0] = 0;  
+            end else begin  
+              tree[idx_q[0]] = new[2];  
+              foreach(tree[idx_q[0]][i])  
+                tree[idx_q[0]][i] = 0;  
+            end  
           end  
-        end  
-             
-        //If unvisited nodes exist in the backward direction in the circuit, traverse backwards.  
-        //If all nodes in the backward direction from the current node have been visited,  
-        //traverse forwards in the circuit (towards output).  
-        if(tree[idx_q[0]][0] == 0)begin  
-          tree[idx_q[0]][0] = 1;  
-          idx_q.push_front(genotype[idx_q[0]][1]);  
-        end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin  
-          tree[idx_q[0]][1] = 1;  
-          idx_q.push_front(genotype[idx_q[0]][2]);  
-        end else begin  
+               
+          //If unvisited nodes exist in the backward direction in the circuit, traverse backwards.  
+          //If all nodes in the backward direction from the current node have been visited,  
+          //traverse forwards in the circuit (towards output).  
+          if(tree[idx_q[0]][0] == 0)begin  
+            tree[idx_q[0]][0] = 1;  
+            idx_q.push_front(genotype[idx_q[0]][1]);  
+          end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin  
+            tree[idx_q[0]][1] = 1;  
+            idx_q.push_front(genotype[idx_q[0]][2]);  
+          end else begin  
+            if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
+              tree_complete[i] = 1;  
+            else  
+              idx_q.delete(0);  
+          end  
+        end else if(idx_q[0] < NUM_INPUTS)begin  
           if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
-            tree_complete[i] = 1;  
+              tree_complete[i] = 1;  
           else  
             idx_q.delete(0);  
-        end  
-      end else if(idx_q[0] < NUM_INPUTS)begin  
-        if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
-            tree_complete[i] = 1;  
-        else  
-          idx_q.delete(0);  
-      end   
+        end   
+      end  
+      
+    end
+    
+    //Check all nodes present in tree. All functions except "wire" increase the gate count  
+    foreach(tree[i])begin  
+      if(arity_lut[genotype[i][0]] == 0)
+        if(t_operation'(genotype[i][0]) == CONST)
+          $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);
+        else
+          $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));    
+      else if(arity_lut[genotype[i][0]] == 1)
+        $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
+      else if(arity_lut[genotype[i][0]] == 2)
+        $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);   
+      
+      if(t_operation'(genotype[i][0]) == ADD || t_operation'(genotype[i][0] == SUB))
+        num_adders = num_adders + 1;
+      if(t_operation'(genotype[i][0]) == MULT)
+        num_mults  = num_mults + 1;       
+      if(t_operation'(genotype[i][0]) == AND || t_operation'(genotype[i][0]) == OR)        
+        num_gates = num_gates + 1;  
+      if(t_operation'(genotype[i][0]) == DFF)
+        num_regs  = num_regs + 1;
     end  
-    
-  end
+    foreach(conn_outputs[i])
+      $display("Output Y[%1d]: %d", i, conn_outputs[i]); 
+      
+  endfunction: calc_resource_util  
+
   
-  //Check all nodes present in tree. All functions except "wire" increase the gate count  
-  foreach(tree[i])begin  
-    if(arity_lut[genotype[i][0]] == 0)
-      if(t_operation'(genotype[i][0]) == CONST)
-        $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);
-      else
-        $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));    
-    else if(arity_lut[genotype[i][0]] == 1)
-      $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
-    else if(arity_lut[genotype[i][0]] == 2)
-      $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);   
+  function void calc_score();
     
-    if(t_operation'(genotype[i][0]) == ADD || t_operation'(genotype[i][0] == SUB))
-      num_adders = num_adders + 1;
-    if(t_operation'(genotype[i][0]) == MULT)
-      num_mults  = num_mults + 1;       
-    if(t_operation'(genotype[i][0]) == AND || t_operation'(genotype[i][0]) == OR)        
-      num_gates = num_gates + 1;  
-    if(t_operation'(genotype[i][0]) == DFF)
-      num_regs  = num_regs + 1;
-  end  
-  foreach(conn_outputs[i])
-    $display("Output Y[%1d]: %d", i, conn_outputs[i]); 
-    
-endfunction: calc_resource_util  
+    score = num_gates + num_regs + 5*num_adders + 15*num_mults;
+  
+  endfunction: calc_score
 
  
 endclass: comb_circuit
