@@ -17,6 +17,9 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   int         fitness    = 100;      //Initialize with arbitrarily high number for poor fitness
   int         score      = 1000;     //Initialize with arbitrarily high number for poor score
 
+  //Tree structure to represent circuit. Used in resource utilization calculation.
+  bit              tree[int][];
+
   function new();
   
     create_genotype();
@@ -204,6 +207,12 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           constants.delete(mut_nodes[i]); //Function of this node no longer constant
         genotype[mut_nodes[i]][0] = $urandom_range(0, $size(arity_lut)-1);
         node_arity[mut_nodes[i]]  = arity_lut[genotype[mut_nodes[i]][0]]; 
+        //If new function is constant or zero constant, set connections to default '0'
+        if(t_operation'(genotype[i][0]) == CONST_ZERO || t_operation'(genotype[i][0]) == CONST)begin
+          for(int j=1; j<int'(arity_lut.max(0))+1; j++)begin
+            genotype[mut_nodes[i]][j] = 0;
+          end
+        end  
       end
     end
     
@@ -259,9 +268,13 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   
   function void calc_resource_util();  
     int              idx_q[$];              
-    bit              tree[int][];         //For storing info about which nodes have been visited  
+    //bit              tree[int][];         //For storing info about which nodes have been visited  
     t_operation      func          = t_operation'(genotype[conn_outputs][0]);       
     bit[NUM_OUTPUTS-1:0] tree_complete = 0;  
+     
+    //Clear all entries from tree 
+    foreach(tree[i])
+      tree.delete(i);    
      
     for(int i=0; i<NUM_OUTPUTS; i++)begin
        
@@ -316,17 +329,18 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     end
     
     //Check all nodes present in tree. All functions except "wire" increase the gate count  
-    foreach(tree[i])begin  
-      if(arity_lut[genotype[i][0]] == 0)
-        if(t_operation'(genotype[i][0]) == CONST)
-          $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);
-        else
-          $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));    
-      else if(arity_lut[genotype[i][0]] == 1)
-        $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
-      else if(arity_lut[genotype[i][0]] == 2)
-        $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);   
-      
+    //foreach(tree[i])begin  
+    //  if(arity_lut[genotype[i][0]] == 0)
+    //    if(t_operation'(genotype[i][0]) == CONST)
+    //      $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);
+    //    else
+    //      $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));    
+    //  else if(arity_lut[genotype[i][0]] == 1)
+    //    $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
+    //  else if(arity_lut[genotype[i][0]] == 2)
+    //    $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);   
+    //  
+    foreach(tree[i])begin 
       if(t_operation'(genotype[i][0]) == ADD || t_operation'(genotype[i][0] == SUB))
         num_adders = num_adders + 1;
       if(t_operation'(genotype[i][0]) == MULT)
@@ -335,11 +349,30 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         num_gates = num_gates + 1;  
       if(t_operation'(genotype[i][0]) == DFF)
         num_regs  = num_regs + 1;
-    end  
-    foreach(conn_outputs[i])
-      $display("Output Y[%1d]: %d", i, conn_outputs[i]); 
+    end
+    //end  
+    //foreach(conn_outputs[i])
+    //  $display("Output Y[%1d]: %d", i, conn_outputs[i]); 
       
   endfunction: calc_resource_util  
+  
+  function void print_resource_util();
+  
+    foreach(tree[i])begin    
+      if(arity_lut[genotype[i][0]] == 0)  
+        if(t_operation'(genotype[i][0]) == CONST)  
+          $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);  
+        else  
+          $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));      
+      else if(arity_lut[genotype[i][0]] == 1)  
+        $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);  
+      else if(arity_lut[genotype[i][0]] == 2)  
+        $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);  
+    end    
+    foreach(conn_outputs[i])  
+      $display("Output Y[%1d]: %d", i, conn_outputs[i]);   
+  
+  endfunction: print_resource_util
 
   
   function void calc_score();

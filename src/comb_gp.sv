@@ -27,6 +27,29 @@ module comb_gp;
   comb_circuit         best_offspring;
   comb_circuit         best_solution;
 
+  
+  task test(input comb_circuit individual, output int out);
+    
+    //Clear L1_norm before testing this individual
+    L1_norm = 0;
+    
+    //First clock cycle
+    X[0]     = 1;
+    Y_EXP[0] = 0;
+    #1;
+
+    //Next three clock cycles          
+    X[0] = 0;
+    for(int j=0; j<3; j++)begin
+      Y_EXP[0] = 3+j;
+      Y       = individual.evaluate_outputs(X);
+      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
+      #1;        
+    end
+    
+    out = L1_norm; 
+  endtask: test
+
 
 initial begin
 
@@ -56,32 +79,11 @@ initial begin
         $display("GENERATION NUMBER: %3d", gen);
         $display("\n");
       end    
-    
-      L1_norm = 0;
-    
+        
       population[i].clear_registers();
 
-      // First clock cycle
-      X[0]       = 1;
-      Y_EXP[0]   = 0;
-      Y       = population[i].evaluate_outputs(X);
-      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);      
-      #1;
-      
-      //Next three clock cycles      
-      X[0] = 0;
-      for(int j=0; j<3; j++)begin
-        if(j < 3)
-          Y_EXP[0] = j+2;
-        else
-          Y_EXP[0] = 0;
-        Y       = population[i].evaluate_outputs(X);
-        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
-        #1;        
-      end
-      
-      
-      population[i].fitness = L1_norm;
+      //Test this individual
+      test(population[i], population[i].fitness);
 
       //Replace current best solution with improved solution
       if(best_solution.fitness > population[i].fitness)begin 
@@ -95,8 +97,9 @@ initial begin
         population[i].calc_score();
         if(population[i].score < best_solution.score)begin
           best_solution = population[i].copy();
-          //$display("Solution found in generation %2d, genotype %2d with %2d gates, %2d registers, %2d adders and %2d multipliers", gen, i, best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults); 
-          $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score);           
+          population[i].print_resource_util();
+          $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
+          $display("Resource utilization: %2d gates, %2d registers, %2d adders and %2d multipliers", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults);           
           $stop;
         end
       end       
@@ -107,29 +110,9 @@ initial begin
         offspring[k].clear_registers();
         offspring[k].mutate();
       
-        L1_norm = 0;
-   
-        // First clock cycle
-        X[0]       = 1;
-        Y_EXP[0]   = 0;
-        Y       = offspring[k].evaluate_outputs(X);
-        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);      
-        #1;
-        
-        //Next three clock cycles      
-        X[0] = 0;
-        for(int j=0; j<3; j++)begin
-          if(j < 3)
-            Y_EXP[0] = j+2;
-          else
-            Y_EXP[0] = 0;
-          Y       = offspring[k].evaluate_outputs(X);
-          L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
-          #1;        
-        end
-   
-        offspring[k].fitness = L1_norm;
-   
+        //Test this offspring individual
+        test(offspring[k], offspring[k].fitness);
+
         if(k == 0)
           best_offspring = offspring[k].copy;
         else if(best_offspring.fitness > offspring[k].fitness)
