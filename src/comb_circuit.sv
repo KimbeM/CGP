@@ -1,19 +1,21 @@
 class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, LEVELS_BACK, NUM_MUTAT);
-  typedef enum int {CONST_ZERO = 0, CONST = 1, DFF = 2, WIRE = 3, AND = 4, OR = 5, ADD = 6, SUB = 7, MULT = 8} t_operation;
+  typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, DFF = 3, WIRE = 4, AND = 5, OR = 6, ADD = 7, SUB = 8, MULT = 9} t_operation;
   typedef int out_type[NUM_OUTPUTS];
   
-  parameter int     arity_lut[9] = {0, 0, 1, 1, 2, 2, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
+  parameter int     arity_lut[10] = {0, 0, 0, 1, 1, 2, 2, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
   
   int         genotype[NUM_INPUTS:(NUM_INPUTS + NUM_ROWS * NUM_COLS)-1][];
   int         node_arity[NUM_INPUTS:(NUM_INPUTS + NUM_COLS*NUM_ROWS)-1];
   int         eval_outputs[(NUM_INPUTS + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
   int         registers[int];
   int         constants[int];
+  int         counters[int];
   int         conn_outputs[NUM_OUTPUTS-1:0];
   int         num_adders = 0;
   int         num_mults  = 0;
   int         num_gates  = 0;
   int         num_regs   = 0;
+  int         num_cnt    = 0;
   int         fitness    = 100;      //Initialize with arbitrarily high number for poor fitness
   int         score      = 1000;     //Initialize with arbitrarily high number for poor score
 
@@ -34,10 +36,12 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     copy.conn_outputs = this.conn_outputs; 
     copy.registers    = this.registers;
     copy.constants    = this.constants;
+    copy.counters     = this.counters;
     copy.num_adders   = this.num_adders;
     copy.num_mults    = this.num_mults;
     copy.num_gates    = this.num_gates;
-    copy.num_regs     = this.num_regs;    
+    copy.num_regs     = this.num_regs;  
+    copy.num_cnt      = this.num_cnt;    
     copy.fitness      = this.fitness;  
     copy.score        = this.score;
     return copy;  
@@ -140,9 +144,20 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         if(constants.exists(idx))begin
           out            = constants[idx];
         end else begin
-          constants[idx] = $urandom_range(1, CONST_MAX);;
+          constants[idx] = $urandom_range(1, CONST_MAX);
           out            = constants[idx];  
         end
+      end else if(genotype[idx][0] == COUNTER)begin
+        if(counters.exists(idx))begin
+          out             = counters[idx];          
+          if(counters[idx] >= CONST_MAX)
+            counters[idx] = 0;
+          else
+            counters[idx]  = counters[idx] + 1;         
+        end else begin
+          out              = 0;            
+          counters[idx]    = 1;
+        end      
       end
     end    
     
@@ -185,6 +200,13 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
       registers[i] = 0;
   
   endfunction: clear_registers
+  
+  function void clear_counters();
+  
+    foreach(counters[i])
+      counters[i] = 0;
+  
+  endfunction: clear_counters  
 
   function void mutate();
     int         mut_nodes[NUM_MUTAT];
@@ -205,6 +227,8 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           registers.delete(mut_nodes[i]); //Function of this node no longer register
         if(t_operation'(genotype[mut_nodes[i]][0]) == CONST)
           constants.delete(mut_nodes[i]); //Function of this node no longer constant
+        if(t_operation'(genotype[mut_nodes[i]][0]) == COUNTER)
+          counters.delete(mut_nodes[i]);
         genotype[mut_nodes[i]][0] = $urandom_range(0, $size(arity_lut)-1);
         node_arity[mut_nodes[i]]  = arity_lut[genotype[mut_nodes[i]][0]]; 
         //If new function is constant or zero constant, set connections to default '0'
@@ -327,19 +351,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
       end  
       
     end
-    
-    //Check all nodes present in tree. All functions except "wire" increase the gate count  
-    //foreach(tree[i])begin  
-    //  if(arity_lut[genotype[i][0]] == 0)
-    //    if(t_operation'(genotype[i][0]) == CONST)
-    //      $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);
-    //    else
-    //      $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));    
-    //  else if(arity_lut[genotype[i][0]] == 1)
-    //    $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);
-    //  else if(arity_lut[genotype[i][0]] == 2)
-    //    $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);   
-    //  
+  
     foreach(tree[i])begin 
       if(t_operation'(genotype[i][0]) == ADD || t_operation'(genotype[i][0] == SUB))
         num_adders = num_adders + 1;
@@ -349,10 +361,9 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         num_gates = num_gates + 1;  
       if(t_operation'(genotype[i][0]) == DFF)
         num_regs  = num_regs + 1;
+      if(t_operation'(genotype[i][0]) == COUNTER)
+        num_cnt  = num_cnt + 1;  
     end
-    //end  
-    //foreach(conn_outputs[i])
-    //  $display("Output Y[%1d]: %d", i, conn_outputs[i]); 
       
   endfunction: calc_resource_util  
   
@@ -362,8 +373,8 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
       if(arity_lut[genotype[i][0]] == 0)  
         if(t_operation'(genotype[i][0]) == CONST)  
           $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);  
-        else  
-          $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));      
+        else
+          $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));           
       else if(arity_lut[genotype[i][0]] == 1)  
         $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);  
       else if(arity_lut[genotype[i][0]] == 2)  
@@ -377,7 +388,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   
   function void calc_score();
     
-    score = num_gates + num_regs + 5*num_adders + 15*num_mults;
+    score = num_gates + num_regs + 5*num_adders + 10*num_cnt +  15*num_mults;
   
   endfunction: calc_score
 

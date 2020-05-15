@@ -34,18 +34,25 @@ module comb_gp;
     L1_norm = 0;
     
     //First clock cycle
-    X[0]     = 1;
-    Y_EXP[0] = 0;
-    #1;
-
-    //Next three clock cycles          
-    X[0] = 0;
-    for(int j=0; j<3; j++)begin
-      Y_EXP[0] = 3+j;
+    //X[0]     = 1;
+    //Y_EXP[0] = 0;
+    //#1;
+    //
+    ////Next three clock cycles          
+    //X[0] = 0;
+    //for(int j=0; j<3; j++)begin
+    //  Y_EXP[0] = 3+j;
+    //  Y       = individual.evaluate_outputs(X);
+    //  L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
+    //  #1;        
+    //end
+    
+    for(int j=0; j<7; j++)begin
+      Y_EXP[0] = (j%3)*3;
       Y       = individual.evaluate_outputs(X);
-      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
-      #1;        
-    end
+      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+      #1;            
+    end    
     
     out = L1_norm; 
   endtask: test
@@ -81,6 +88,7 @@ initial begin
       end    
         
       population[i].clear_registers();
+      population[i].clear_counters();
 
       //Test this individual
       test(population[i], population[i].fitness);
@@ -99,7 +107,7 @@ initial begin
           best_solution = population[i].copy();
           population[i].print_resource_util();
           $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
-          $display("Resource utilization: %2d gates, %2d registers, %2d adders and %2d multipliers", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults);           
+          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers and %2d counters", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt);           
           $stop;
         end
       end       
@@ -108,6 +116,7 @@ initial begin
       foreach(offspring[k])begin
         offspring[k] = population[i].copy(); 
         offspring[k].clear_registers();
+        offspring[k].clear_counters();
         offspring[k].mutate();
       
         //Test this offspring individual
