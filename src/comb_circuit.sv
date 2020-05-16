@@ -1,4 +1,4 @@
-class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, LEVELS_BACK, NUM_MUTAT);
+class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, COUNT_MAX, LEVELS_BACK, NUM_MUTAT);
   typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, DFF = 3, WIRE = 4, AND = 5, OR = 6, ADD = 7, SUB = 8, MULT = 9} t_operation;
   typedef int out_type[NUM_OUTPUTS];
   
@@ -9,7 +9,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   int         eval_outputs[(NUM_INPUTS + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
   int         registers[int];
   int         constants[int];
-  int         counters[int];
+  int         counters[int][2];  //[0] = Counter Value, [1] = Counter Max
   int         conn_outputs[NUM_OUTPUTS-1:0];
   int         num_adders = 0;
   int         num_mults  = 0;
@@ -149,14 +149,15 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         end
       end else if(genotype[idx][0] == COUNTER)begin
         if(counters.exists(idx))begin
-          out             = counters[idx];          
-          if(counters[idx] >= CONST_MAX)
-            counters[idx] = 0;
+          out             = counters[idx][0];          
+          if(counters[idx][0] >= counters[idx][1])
+            counters[idx][0] = 0;
           else
-            counters[idx]  = counters[idx] + 1;         
+            counters[idx][0]  = counters[idx][0] + 1;         
         end else begin
-          out              = 0;            
-          counters[idx]    = 1;
+          out              = 0; 
+          counters[idx][1] = $urandom_range(1, COUNT_MAX);  //Randomize range of counter
+          counters[idx][0] = 1;
         end      
       end
     end    
@@ -204,7 +205,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   function void clear_counters();
   
     foreach(counters[i])
-      counters[i] = 0;
+      counters[i][0] = 0;
   
   endfunction: clear_counters  
 
@@ -292,7 +293,6 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   
   function void calc_resource_util();  
     int              idx_q[$];              
-    //bit              tree[int][];         //For storing info about which nodes have been visited  
     t_operation      func          = t_operation'(genotype[conn_outputs][0]);       
     bit[NUM_OUTPUTS-1:0] tree_complete = 0;  
      
@@ -370,12 +370,14 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   function void print_resource_util();
   
     foreach(tree[i])begin    
-      if(arity_lut[genotype[i][0]] == 0)  
+      if(arity_lut[genotype[i][0]] == 0)  begin
         if(t_operation'(genotype[i][0]) == CONST)  
           $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), constants[i]);  
-        else
+        else if(t_operation'(genotype[i][0]) == COUNTER)
+          $display("Node num %d: %s=%d" , i, t_operation'(genotype[i][0]), counters[i][1]);           
+        else if(t_operation'(genotype[i][0]) == CONST_ZERO)
           $display("Node num %d: %s" , i, t_operation'(genotype[i][0]));           
-      else if(arity_lut[genotype[i][0]] == 1)  
+      end else if(arity_lut[genotype[i][0]] == 1)  
         $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);  
       else if(arity_lut[genotype[i][0]] == 2)  
         $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);  

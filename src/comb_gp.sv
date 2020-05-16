@@ -8,6 +8,7 @@ module comb_gp;
   parameter            NUM_COLS;
   parameter            LEVELS_BACK;
   parameter            CONST_MAX;
+  parameter            COUNT_MAX;
   parameter            POPUL_SIZE;
   parameter            NUM_MUTAT;
   
@@ -48,7 +49,7 @@ module comb_gp;
     //end
     
     for(int j=0; j<7; j++)begin
-      Y_EXP[0] = (j%3)*3;
+      Y_EXP[0] = (j%3)*12+6;
       Y       = individual.evaluate_outputs(X);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
       #1;            
@@ -67,6 +68,7 @@ initial begin
   assert (NUM_COLS    > 0 && NUM_COLS    < 17)                   else $fatal ("FAILURE! NUMBER OF COLUMNS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (LEVELS_BACK > 0 && LEVELS_BACK <= NUM_COLS)            else $fatal ("FAILURE! LEVELS BACK HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUM_COLS)");
   assert (NUM_MUTAT   > 0 && NUM_MUTAT   <= NUM_ROWS * NUM_COLS) else $fatal ("FAILURE! NUMBER OF MUTATIONS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUMBER OF NODES)");
+  assert (COUNT_MAX   > 0 && COUNT_MAX   < 17)                   else $fatal ("FAILURE! MAX VALUE OF COUNTERS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (CONST_MAX   > 0 && CONST_MAX   < 17)                   else $fatal ("FAILURE! MAX VALUE OF CONSTANTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (POPUL_SIZE  > 0)                                       else $fatal ("FAILURE! POPULATION SIZE MUST BE LARGER THAN 0");
 
