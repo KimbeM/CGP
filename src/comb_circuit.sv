@@ -1,8 +1,8 @@
 class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, COUNT_MAX, LEVELS_BACK, NUM_MUTAT);
-  typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, DFF = 3, WIRE = 4, AND = 5, OR = 6, ADD = 7, SUB = 8, MULT = 9} t_operation;
+  typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, DFF = 3, WIRE = 4, AND = 5, OR = 6, ADD = 7, SUB = 8, MULT = 9, COMP = 10, COMP_GT = 11} t_operation;
   typedef int out_type[NUM_OUTPUTS];
   
-  parameter int     arity_lut[10] = {0, 0, 0, 1, 1, 2, 2, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
+  parameter int     arity_lut[12] = {0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
   
   int         genotype[NUM_INPUTS:(NUM_INPUTS + NUM_ROWS * NUM_COLS)-1][];
   int         node_arity[NUM_INPUTS:(NUM_INPUTS + NUM_COLS*NUM_ROWS)-1];
@@ -16,6 +16,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   int         num_gates  = 0;
   int         num_regs   = 0;
   int         num_cnt    = 0;
+  int         num_cmp    = 0;
   int         fitness    = 100;      //Initialize with arbitrarily high number for poor fitness
   int         score      = 1000;     //Initialize with arbitrarily high number for poor score
 
@@ -42,6 +43,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     copy.num_gates    = this.num_gates;
     copy.num_regs     = this.num_regs;  
     copy.num_cnt      = this.num_cnt;    
+    copy.num_cmp      = this.num_cmp;
     copy.fitness      = this.fitness;  
     copy.score        = this.score;
     return copy;  
@@ -124,7 +126,17 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
       end else if(genotype[idx][0] == SUB)begin
         out   = input_A - input_B;   
       end else if(genotype[idx][0] == MULT)begin
-        out   = input_A * input_B;           
+        out   = input_A * input_B;       
+      end else if(genotype[idx][0] == COMP)begin
+        if(input_A == input_B)
+          out = 1;
+        else
+          out = 0;
+      end else if(genotype[idx][0] == COMP_GT)begin
+        if(input_A > input_B)
+          out = 1;
+        else
+          out = 0;
       end
     end else begin
       input_A = eval_outputs[genotype[idx][1]]; 
@@ -344,7 +356,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           end  
         end else if(idx_q[0] < NUM_INPUTS)begin  
           if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
-              tree_complete[i] = 1;  
+            tree_complete[i] = 1;  
           else  
             idx_q.delete(0);  
         end   
@@ -363,6 +375,8 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         num_regs  = num_regs + 1;
       if(t_operation'(genotype[i][0]) == COUNTER)
         num_cnt  = num_cnt + 1;  
+      if(t_operation'(genotype[i][0]) == COMP || t_operation'(genotype[i][0]) == COMP_GT)
+        num_cmp  = num_cmp + 1;
     end
       
   endfunction: calc_resource_util  
@@ -390,7 +404,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   
   function void calc_score();
     
-    score = num_gates + num_regs + 5*num_adders + 10*num_cnt +  15*num_mults;
+    score = num_gates + num_regs + 5*num_adders + 10*num_cmp + 10*num_cnt + 15*num_mults;
   
   endfunction: calc_score
 

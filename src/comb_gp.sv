@@ -48,8 +48,13 @@ module comb_gp;
     //  #1;        
     //end
     
-    for(int j=0; j<7; j++)begin
-      Y_EXP[0] = (j%3)*12+6;
+    for(int j=0; j<15; j++)begin
+      if(j<5)
+        Y_EXP[0] = 0;
+      else if(j<10)
+        Y_EXP[0] = 1;
+      else
+        Y_EXP[0] = 0;
       Y       = individual.evaluate_outputs(X);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
       #1;            
@@ -109,7 +114,7 @@ initial begin
           best_solution = population[i].copy();
           population[i].print_resource_util();
           $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
-          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers and %2d counters", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt);           
+          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters and %2d comparators", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp);           
           $stop;
         end
       end       
