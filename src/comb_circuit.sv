@@ -329,11 +329,14 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           //Allocate memory for the dynamic dimension of the tree according to the arity of the gate currently pointed to.  
           //OBS: only if memory has not been allocated already for this node.  
           if(tree[idx_q[0]].size() == 0)begin    
-            if(arity_lut[int'(func)] == 1)begin  
+            if(arity_lut[int'(func)] == 0)begin
+              tree[idx_q[0]]    = new[1];  
+              tree[idx_q[0]][0] = 1;            
+            end else if(arity_lut[int'(func)] == 1)begin  
               tree[idx_q[0]]    = new[1];  
               tree[idx_q[0]][0] = 0;  
             end else begin  
-              tree[idx_q[0]] = new[2];  
+              tree[idx_q[0]] = new[arity_lut[int'(func)]];  
               foreach(tree[idx_q[0]][i])  
                 tree[idx_q[0]][i] = 0;  
             end  
@@ -351,6 +354,8 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           end else begin  
             if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
               tree_complete[i] = 1;  
+            else if(tree[idx_q[0]].and() == 1 && idx_q[0] == conn_outputs[i])
+              tree_complete[i] = 1;              
             else  
               idx_q.delete(0);  
           end  
