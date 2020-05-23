@@ -8,6 +8,7 @@ module comb_gp;
   parameter            NUM_COLS;
   parameter            LEVELS_BACK;
   parameter            CONST_MAX;
+  parameter            COUNT_MAX;
   parameter            POPUL_SIZE;
   parameter            NUM_MUTAT;
   
@@ -33,19 +34,22 @@ module comb_gp;
     //Clear L1_norm before testing this individual
     L1_norm = 0;
     
-    //First clock cycle
-    X[0]     = 1;
-    Y_EXP[0] = 0;
-    #1;
-
-    //Next three clock cycles          
-    X[0] = 0;
-    for(int j=0; j<3; j++)begin
-      Y_EXP[0] = 3+j;
+    for(int j=0; j<15; j++)begin
+      if(j<5)begin
+        Y_EXP[0] = 0;
+        Y_EXP[1] = 1;
+      end else if(j<10)begin
+        Y_EXP[0] = 1;
+        Y_EXP[1] = 1;
+      end else begin
+        Y_EXP[0] = 0;
+        Y_EXP[1] = 0;
+      end
       Y       = individual.evaluate_outputs(X);
-      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
-      #1;        
-    end
+      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+      L1_norm = L1_norm + abs(Y[1] - Y_EXP[1]);
+      #1;            
+    end    
     
     out = L1_norm; 
   endtask: test
@@ -60,6 +64,7 @@ initial begin
   assert (NUM_COLS    > 0 && NUM_COLS    < 17)                   else $fatal ("FAILURE! NUMBER OF COLUMNS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (LEVELS_BACK > 0 && LEVELS_BACK <= NUM_COLS)            else $fatal ("FAILURE! LEVELS BACK HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUM_COLS)");
   assert (NUM_MUTAT   > 0 && NUM_MUTAT   <= NUM_ROWS * NUM_COLS) else $fatal ("FAILURE! NUMBER OF MUTATIONS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUMBER OF NODES)");
+  assert (COUNT_MAX   > 0 && COUNT_MAX   < 17)                   else $fatal ("FAILURE! MAX VALUE OF COUNTERS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (CONST_MAX   > 0 && CONST_MAX   < 17)                   else $fatal ("FAILURE! MAX VALUE OF CONSTANTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (POPUL_SIZE  > 0)                                       else $fatal ("FAILURE! POPULATION SIZE MUST BE LARGER THAN 0");
 
@@ -81,6 +86,7 @@ initial begin
       end    
         
       population[i].clear_registers();
+      population[i].clear_counters();
 
       //Test this individual
       test(population[i], population[i].fitness);
@@ -99,7 +105,7 @@ initial begin
           best_solution = population[i].copy();
           population[i].print_resource_util();
           $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
-          $display("Resource utilization: %2d gates, %2d registers, %2d adders and %2d multipliers", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults);           
+          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters and %2d comparators", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp);           
           $stop;
         end
       end       
@@ -108,6 +114,7 @@ initial begin
       foreach(offspring[k])begin
         offspring[k] = population[i].copy(); 
         offspring[k].clear_registers();
+        offspring[k].clear_counters();
         offspring[k].mutate();
       
         //Test this offspring individual
