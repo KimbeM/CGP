@@ -34,29 +34,20 @@ module comb_gp;
     //Clear L1_norm before testing this individual
     L1_norm = 0;
     
-    //First clock cycle
-    //X[0]     = 1;
-    //Y_EXP[0] = 0;
-    //#1;
-    //
-    ////Next three clock cycles          
-    //X[0] = 0;
-    //for(int j=0; j<3; j++)begin
-    //  Y_EXP[0] = 3+j;
-    //  Y       = individual.evaluate_outputs(X);
-    //  L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);   
-    //  #1;        
-    //end
-    
     for(int j=0; j<15; j++)begin
-      if(j<5)
+      if(j<5)begin
         Y_EXP[0] = 0;
-      else if(j<10)
+        Y_EXP[1] = 1;
+      end else if(j<10)begin
         Y_EXP[0] = 1;
-      else
+        Y_EXP[1] = 1;
+      end else begin
         Y_EXP[0] = 0;
+        Y_EXP[1] = 0;
+      end
       Y       = individual.evaluate_outputs(X);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+      L1_norm = L1_norm + abs(Y[1] - Y_EXP[1]);
       #1;            
     end    
     
