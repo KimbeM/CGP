@@ -1,8 +1,8 @@
 class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, COUNT_MAX, LEVELS_BACK, NUM_MUTAT);
-  typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, DFF = 3, WIRE = 4, AND = 5, OR = 6, ADD = 7, SUB = 8, MULT = 9, COMP = 10, COMP_GT = 11} t_operation;
+  typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, NOT = 3, DFF = 4, WIRE = 5, AND = 6, OR = 7, ADD = 8, SUB = 9, MULT = 10, COMP = 11, COMP_GT = 12, ITE = 13} t_operation;
   typedef int out_type[NUM_OUTPUTS];
   
-  parameter int     arity_lut[12] = {0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2};     //Arity look-up table for "t_operation" typedef
+  parameter int     arity_lut[14] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3};     //Arity look-up table for "t_operation" typedef
   
   int         genotype[NUM_INPUTS:(NUM_INPUTS + NUM_ROWS * NUM_COLS)-1][];
   int         node_arity[NUM_INPUTS:(NUM_INPUTS + NUM_COLS*NUM_ROWS)-1];
@@ -51,7 +51,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   
   function create_genotype();
 
-    //Gene size is maximum arity + 1 (for storing node function) 
+    //Gene size is maximum arity + 1 (for storing all input nodes + storing node function) 
     foreach(genotype[i])begin
       genotype[i]   = new[int'(arity_lut.max(0)) + 1];
     end
@@ -73,15 +73,18 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   function randomize_connections(); 
   
     int       conn;
-    int       conn_prev;
+    int       conn_prev[];
+    bit       conn_ok;
+    
+    conn_prev = new[int'(arity_lut.max(0)) - 1];  //Size is arity - 1
   
     //Randomize connections for each node
     for(int i=0; i<NUM_ROWS; i++)begin
       for(int j=0; j<NUM_COLS; j++)begin  
         if(node_arity[i + NUM_INPUTS + (NUM_ROWS * j)] > 0)begin
           for(int k=0; k<node_arity[i + (NUM_ROWS * j) + NUM_INPUTS]; k++)begin      
-            if(k == 1)      
-              conn_prev = conn;      
+            if(k > 0)      
+              conn_prev[k-1] = conn;     
             do begin      
               if(j == 0)begin      
                 conn               = $urandom_range(0, NUM_INPUTS-1);      
@@ -92,8 +95,13 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
               end else begin      
                 conn                             = $urandom_range(NUM_INPUTS+((j-LEVELS_BACK)*NUM_ROWS), NUM_INPUTS+(j*NUM_ROWS)-1);      
                 genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
-              end      
-            end while(conn == conn_prev && k == 1);      
+              end  
+              conn_ok = 1;  //Set to 0 if any of the previous connections for this node matches conn
+              for(int x=0; x<int'(arity_lut.max(0)); x++)begin
+                if(conn == conn_prev[x])
+                  conn_ok = 0;
+              end
+            end while(conn_ok == 0 && k > 0);
           end
         end
       end
@@ -112,9 +120,20 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   function int evaluate_node_output(int idx);
     int input_A;
     int input_B;
+    int input_C;
     int out;
     
-    if(node_arity[idx] == 2)begin
+    if(node_arity[idx] == 3)begin
+      input_A = eval_outputs[genotype[idx][1]];
+      input_B = eval_outputs[genotype[idx][2]];
+      input_C = eval_outputs[genotype[idx][3]];
+      if(genotype[idx][0] == ITE)begin
+        if(input_A)
+          out = input_B;
+        else
+          out = input_C;
+      end
+    end else if(node_arity[idx] == 2)begin
       input_A = eval_outputs[genotype[idx][1]]; 
       input_B = eval_outputs[genotype[idx][2]];
       if(genotype[idx][0] == AND)begin
@@ -138,10 +157,12 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         else
           out = 0;
       end
-    end else begin
+    end else if(node_arity[idx] == 1)begin
       input_A = eval_outputs[genotype[idx][1]]; 
       if(genotype[idx][0] == WIRE)begin
         out   = input_A;
+      end else if(genotype[idx][0] == NOT)begin
+        out   = !input_A;        
       end else if(genotype[idx][0] == DFF)begin
         if(registers.exists(idx))begin
           out            = registers[idx];
@@ -150,7 +171,9 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           registers[idx] = input_A;
           out            = 0;  //Assume that all registers are initialized with value 0
         end
-      end else if(genotype[idx][0] == CONST_ZERO)begin
+      end
+    end else begin
+      if(genotype[idx][0] == CONST_ZERO)begin
         out   = 0;
       end else if(genotype[idx][0] == CONST)begin
         if(constants.exists(idx))begin
@@ -224,9 +247,12 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   function void mutate();
     int         mut_nodes[NUM_MUTAT];
     int         conn;
-    int         conn_prev;
+    int         conn_prev[];
+    bit         conn_ok;    
     int         idx = 0;
     int         conn_out_offset = NUM_INPUTS + NUM_ROWS * NUM_COLS; //Index of first output connection
+  
+    conn_prev = new[int'(arity_lut.max(0)) - 1];  //Size is arity - 1  
   
     //Randomize which nodes get mutated
     for(int i=0; i<NUM_MUTAT; i++)begin
@@ -262,7 +288,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           if(node_arity[i + NUM_INPUTS + (NUM_ROWS * j)] > 0)begin
             for(int k=0; k<node_arity[i + (j * NUM_ROWS) + NUM_INPUTS]; k++)begin
               if(k == 1)      
-                conn_prev = conn;      
+                conn_prev[k-1] = conn;      
               do begin      
                 if(j == 0)begin      
                   conn               = $urandom_range(0, NUM_INPUTS-1);      
@@ -274,7 +300,12 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
                   conn                             = $urandom_range(NUM_INPUTS+((j-LEVELS_BACK)*NUM_ROWS), NUM_INPUTS+(j*NUM_ROWS)-1);      
                   genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;    
                 end      
-              end while(conn == conn_prev && k == 1); 
+                conn_ok = 1;  //Set to 0 if any of the previous connections for this node matches conn
+                for(int x=0; x<int'(arity_lut.max(0)); x++)begin
+                  if(conn == conn_prev[x])
+                    conn_ok = 0;
+                end
+              end while(conn_ok == 0 && k > 0);
             end
           end
         end
