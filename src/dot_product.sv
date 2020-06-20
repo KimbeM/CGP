@@ -1,6 +1,6 @@
 class dot_product#(parameter NUM_INPUTS);
 
-  parameter NUM_VECTORS = 3; //Number of stimulus vectors for dot product test
+  parameter NUM_VECTORS = 2; //Number of stimulus vectors for dot product test
   
   typedef int out_type[NUM_INPUTS];
 

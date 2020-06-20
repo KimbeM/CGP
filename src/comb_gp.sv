@@ -111,7 +111,7 @@ initial begin
           best_solution = population[i].copy();
           population[i].print_resource_util();
           $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
-          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters and %2d comparators", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp);           
+          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters, %2d comparators and %2d muxes", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp, best_solution.num_ite);           
           $stop;
         end
       end       

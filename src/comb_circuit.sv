@@ -17,6 +17,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   int         num_regs   = 0;
   int         num_cnt    = 0;
   int         num_cmp    = 0;
+  int         num_mux    = 0;
   int         fitness    = 100;      //Initialize with arbitrarily high number for poor fitness
   int         score      = 1000;     //Initialize with arbitrarily high number for poor score
 
@@ -44,6 +45,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     copy.num_regs     = this.num_regs;  
     copy.num_cnt      = this.num_cnt;    
     copy.num_cmp      = this.num_cmp;
+    copy.num_mux      = this.num_mux;
     copy.fitness      = this.fitness;  
     copy.score        = this.score;
     return copy;  
@@ -97,7 +99,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
                 genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
               end  
               conn_ok = 1;  //Set to 0 if any of the previous connections for this node matches conn
-              for(int x=0; x<int'(arity_lut.max(0)); x++)begin
+              for(int x=0; x<int'(arity_lut.max(0))-1; x++)begin
                 if(conn == conn_prev[x])
                   conn_ok = 0;
               end
@@ -362,14 +364,18 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           if(tree[idx_q[0]].size() == 0)begin    
             if(arity_lut[int'(func)] == 0)begin
               tree[idx_q[0]]    = new[1];  
-              tree[idx_q[0]][0] = 1;            
+              tree[idx_q[0]][0] = 1;      
             end else if(arity_lut[int'(func)] == 1)begin  
               tree[idx_q[0]]    = new[1];  
               tree[idx_q[0]][0] = 0;  
-            end else begin  
+            end else if(arity_lut[int'(func)] == 2)begin    
               tree[idx_q[0]] = new[arity_lut[int'(func)]];  
               foreach(tree[idx_q[0]][i])  
                 tree[idx_q[0]][i] = 0;  
+            end else if(arity_lut[int'(func)] == 3)begin    
+              tree[idx_q[0]] = new[arity_lut[int'(func)]];  
+              foreach(tree[idx_q[0]][i])  
+                tree[idx_q[0]][i] = 0;                  
             end  
           end  
                
@@ -379,13 +385,16 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           if(tree[idx_q[0]][0] == 0)begin  
             tree[idx_q[0]][0] = 1;  
             idx_q.push_front(genotype[idx_q[0]][1]);  
-          end else if(tree[idx_q[0]].size() == 2 && tree[idx_q[0]][1] == 0)begin  
+          end else if(tree[idx_q[0]].size() > 1 && tree[idx_q[0]][1] == 0)begin  
             tree[idx_q[0]][1] = 1;  
             idx_q.push_front(genotype[idx_q[0]][2]);  
+          end else if(tree[idx_q[0]].size() > 2 && tree[idx_q[0]][2] == 0)begin  
+            tree[idx_q[0]][2] = 1;  
+            idx_q.push_front(genotype[idx_q[0]][3]);              
           end else begin  
             if(idx_q[1] == conn_outputs[i] && tree[idx_q[1]].and() == 1)  
               tree_complete[i] = 1;  
-            else if(tree[idx_q[0]].and() == 1 && idx_q[0] == conn_outputs[i])
+            else if(idx_q[0] == conn_outputs[i] && tree[idx_q[0]].and() == 1)
               tree_complete[i] = 1;              
             else  
               idx_q.delete(0);  
@@ -413,6 +422,8 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         num_cnt  = num_cnt + 1;  
       if(t_operation'(genotype[i][0]) == COMP || t_operation'(genotype[i][0]) == COMP_GT)
         num_cmp  = num_cmp + 1;
+      if(t_operation'(genotype[i][0]) == ITE)
+        num_mux  = num_mux + 1;
     end
       
   endfunction: calc_resource_util  
@@ -431,6 +442,8 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         $display("Node num %d: %s %d" , i, t_operation'(genotype[i][0]), genotype[i][1]);  
       else if(arity_lut[genotype[i][0]] == 2)  
         $display("Node num %d: %s %d %d" , i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2]);  
+      else if(arity_lut[genotype[i][0]] == 3)
+        $display("Node num %d: %s %d %d %d", i, t_operation'(genotype[i][0]), genotype[i][1], genotype[i][2], genotype[i][3]);  
     end    
     foreach(conn_outputs[i])  
       $display("Output Y[%1d]: %d", i, conn_outputs[i]);   
@@ -440,7 +453,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   
   function void calc_score();
     
-    score = num_gates + num_regs + 5*num_adders + 10*num_cmp + 10*num_cnt + 15*num_mults;
+    score = num_gates + num_regs + 5*num_adders + 5*num_mux + 10*num_cmp + 10*num_cnt + 15*num_mults;
   
   endfunction: calc_score
 
