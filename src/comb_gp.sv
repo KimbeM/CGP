@@ -11,7 +11,8 @@ module comb_gp;
   parameter            COUNT_MAX;
   parameter            POPUL_SIZE;
   parameter            NUM_MUTAT;
-  
+
+    
   int X[NUM_INPUTS]; 
   int Y[NUM_OUTPUTS];
   int Y_EXP[NUM_OUTPUTS]; //Expected output
@@ -27,30 +28,36 @@ module comb_gp;
   comb_circuit         offspring[4];
   comb_circuit         best_offspring;
   comb_circuit         best_solution;
-
+  dot_product          dp;
   
-  task test(input comb_circuit individual, output int out);
+  task test(input comb_circuit individual, output int out); 
+    int num_tests;
+    
+    num_tests = dp.get_num_tests;
     
     //Clear L1_norm before testing this individual
-    L1_norm = 0;
+    L1_norm = 0; 
     
-    for(int j=0; j<15; j++)begin
-      if(j<5)begin
-        Y_EXP[0] = 0;
-        Y_EXP[1] = 1;
-      end else if(j<10)begin
-        Y_EXP[0] = 1;
-        Y_EXP[1] = 1;
-      end else begin
-        Y_EXP[0] = 0;
-        Y_EXP[1] = 0;
-      end
-      Y       = individual.evaluate_outputs(X);
-      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
-      L1_norm = L1_norm + abs(Y[1] - Y_EXP[1]);
-      #1;            
-    end    
-    
+    for(int i=0; i<num_tests; i++)begin   
+      //Clear registers and counters to avoid faulty results
+      individual.clear_registers();
+      individual.clear_counters();
+      
+      //Get expected dot product output for one stimulus vector at a time
+      Y_EXP[0] = dp.dp_expected(i);
+      
+      X = dp.get_stim_vector(i);
+      
+      //Evaluate output of digital circuit
+      Y = individual.evaluate_outputs(X);
+      for(int j=0; j<NUM_OUTPUTS; j++)begin
+       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+       if(L1_norm < 0)
+         L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed
+       #1;  
+      end    
+    end
+ 
     out = L1_norm; 
   endtask: test
 
@@ -74,6 +81,7 @@ initial begin
 
   best_solution = new();            //Create "dummy" best solution object
   
+  dp = new();
  
   //Main 
   for(int gen=0; gen<=num_generations; gen++)begin
@@ -105,7 +113,7 @@ initial begin
           best_solution = population[i].copy();
           population[i].print_resource_util();
           $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
-          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters and %2d comparators", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp);           
+          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters, %2d comparators and %2d muxes", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp, best_solution.num_mux);           
           $stop;
         end
       end       
