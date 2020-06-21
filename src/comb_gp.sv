@@ -52,6 +52,8 @@ module comb_gp;
       Y = individual.evaluate_outputs(X);
       for(int j=0; j<NUM_OUTPUTS; j++)begin
        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+       if(L1_norm < 0)
+         L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed
        #1;  
       end    
     end
