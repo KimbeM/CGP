@@ -228,7 +228,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
       end
       out_matches.delete(); //Clear queue
     end
-  
+      
     return Y;
   endfunction: evaluate_outputs 
   
@@ -289,7 +289,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           idx = idx + 1;
           if(node_arity[i + NUM_INPUTS + (NUM_ROWS * j)] > 0)begin
             for(int k=0; k<node_arity[i + (j * NUM_ROWS) + NUM_INPUTS]; k++)begin
-              if(k == 1)      
+              if(k > 0)      
                 conn_prev[k-1] = conn;      
               do begin      
                 if(j == 0)begin      
@@ -303,7 +303,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
                   genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;    
                 end      
                 conn_ok = 1;  //Set to 0 if any of the previous connections for this node matches conn
-                for(int x=0; x<int'(arity_lut.max(0)); x++)begin
+                for(int x=0; x<int'(arity_lut.max(0))-1; x++)begin
                   if(conn == conn_prev[x])
                     conn_ok = 0;
                 end
