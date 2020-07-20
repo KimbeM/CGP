@@ -81,7 +81,7 @@ module comb_gp;
     
     out = L1_norm;
   endtask: test
-  */
+
   
   task test(input comb_circuit individual, output int out);
     const int pwm_period  = 5;
@@ -111,6 +111,40 @@ module comb_gp;
     
     out = L1_norm;
   endtask: test  
+  
+  */
+
+  task test(input comb_circuit individual, output int out);
+    const int peak_val  = 8;
+    const int num_periods = 2;
+        
+    L1_norm = 0;      
+        
+    X[0] = 0;
+    X[1] = 0;
+    X[2] = 0;    
+        
+    for(int i=0; i<num_periods; i++)begin
+      for(int j=0; j<=peak_val; j++)begin
+        Y_EXP[0] = j;
+        Y = individual.evaluate_outputs(X);   
+        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+        if(L1_norm < 0)
+          L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed        
+        #1;        
+      end
+      for(int j=peak_val-1; j>=0; j--)begin
+        Y_EXP[0] = j;
+        Y = individual.evaluate_outputs(X);   
+        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+        if(L1_norm < 0)
+          L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed        
+        #1;        
+      end
+    end
+    
+    out = L1_norm;
+  endtask: test   
   
   
 initial begin
