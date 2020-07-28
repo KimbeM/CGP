@@ -111,8 +111,6 @@ module comb_gp;
     
     out = L1_norm;
   endtask: test  
-  
-  */
 
   task test(input comb_circuit individual, output int out);
     const int peak_val  = 8;
@@ -145,6 +143,67 @@ module comb_gp;
     
     out = L1_norm;
   endtask: test   
+ 
+  */
+  
+  task pulse_x(input bit[NUM_INPUTS-1:0] mask, input int num_cycles);
+
+    foreach(X[k])begin
+      X[k] = mask[k];
+    end
+
+    for(int i=0; i<num_cycles; i++)begin
+      #1;
+    end
+
+  endtask: pulse_x  
+  
+  task check_result(input comb_circuit individual, input int exp, output int result);
+
+    Y_EXP[0] = exp;
+    Y = individual.evaluate_outputs(X);   
+    L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+    if(L1_norm < 0)
+      L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed   
+
+  endtask: check_result    
+  
+  
+  task test(input comb_circuit individual, output int out);
+     
+    int result;
+        
+    L1_norm = 0;      
+       
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 1, result); //Expect increment
+
+    for(int i=0; i<6; i++)begin
+      pulse_x('b000, 1);
+      check_result(individual, 1, result); //Expect result to still be 1
+    end
+    
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 2, result); //Expect increment    
+
+    for(int i=0; i<3; i++)begin
+      pulse_x('b000, 1);
+      check_result(individual, 2, result); //Expect result to still be 1
+    end
+    
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 3, result); //Expect increment     
+
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 4, result); //Expect increment       
+
+ 
+    out = L1_norm;
+  endtask: test     
   
   
 initial begin
