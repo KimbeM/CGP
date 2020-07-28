@@ -30,6 +30,7 @@ module comb_gp;
   comb_circuit         best_solution;
   dot_product          dp;
   
+  /*
   task test(input comb_circuit individual, output int out); 
     int num_tests;
     
@@ -61,7 +62,150 @@ module comb_gp;
     out = L1_norm; 
   endtask: test
 
+  
+  task test(input comb_circuit individual, output int out);
+    const int pwm_period  = 100;
+    const int num_periods = 2;
+    const int duty_cycle  = 20;
+    
+    for(int i=0; i<num_periods; i++)begin
+      for(int t=0; t<pwm_period; t++)begin
+        if(t < duty_cycle)
+          Y_EXP[0] = 1;
+        else
+          Y_EXP[0] = 0;
+        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+        #1;
+      end 
+    end
+    
+    out = L1_norm;
+  endtask: test
 
+  
+  task test(input comb_circuit individual, output int out);
+    const int pwm_period  = 5;
+    const int num_periods = 2;
+    const int duty_cycle  = pwm_period/5;
+        
+    L1_norm = 0;      
+        
+    X[0] = 0;
+    X[1] = 0;
+    X[2] = 0;    
+        
+    for(int i=0; i<num_periods; i++)begin
+      for(int t=0; t<pwm_period; t++)begin
+        Y = individual.evaluate_outputs(X);         
+        if(t < duty_cycle)begin
+          Y_EXP[0] = 5;
+        end else begin
+          Y_EXP[0] = 0;
+        end
+        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+        if(L1_norm < 0)
+          L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed        
+        #1;
+      end 
+    end
+    
+    out = L1_norm;
+  endtask: test  
+
+  task test(input comb_circuit individual, output int out);
+    const int peak_val  = 8;
+    const int num_periods = 2;
+        
+    L1_norm = 0;      
+        
+    X[0] = 0;
+    X[1] = 0;
+    X[2] = 0;    
+        
+    for(int i=0; i<num_periods; i++)begin
+      for(int j=0; j<=peak_val; j++)begin
+        Y_EXP[0] = j;
+        Y = individual.evaluate_outputs(X);   
+        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+        if(L1_norm < 0)
+          L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed        
+        #1;        
+      end
+      for(int j=peak_val-1; j>=0; j--)begin
+        Y_EXP[0] = j;
+        Y = individual.evaluate_outputs(X);   
+        L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+        if(L1_norm < 0)
+          L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed        
+        #1;        
+      end
+    end
+    
+    out = L1_norm;
+  endtask: test   
+ 
+  */
+  
+  task pulse_x(input bit[NUM_INPUTS-1:0] mask, input int num_cycles);
+
+    foreach(X[k])begin
+      X[k] = mask[k];
+    end
+
+    for(int i=0; i<num_cycles; i++)begin
+      #1;
+    end
+
+  endtask: pulse_x  
+  
+  task check_result(input comb_circuit individual, input int exp, output int result);
+
+    Y_EXP[0] = exp;
+    Y = individual.evaluate_outputs(X);   
+    L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+    if(L1_norm < 0)
+      L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed   
+
+  endtask: check_result    
+  
+  
+  task test(input comb_circuit individual, output int out);
+     
+    int result;
+        
+    L1_norm = 0;      
+       
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 1, result); //Expect increment
+
+    for(int i=0; i<6; i++)begin
+      pulse_x('b000, 1);
+      check_result(individual, 1, result); //Expect result to still be 1
+    end
+    
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 2, result); //Expect increment    
+
+    for(int i=0; i<3; i++)begin
+      pulse_x('b000, 1);
+      check_result(individual, 2, result); //Expect result to still be 1
+    end
+    
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 3, result); //Expect increment     
+
+    //Toggle X[0] and check that Y is incremented by one after one clock cycle
+    pulse_x('b001, 1);
+    check_result(individual, 4, result); //Expect increment       
+
+ 
+    out = L1_norm;
+  endtask: test     
+  
+  
 initial begin
 
   //Initialization phase
@@ -71,8 +215,8 @@ initial begin
   assert (NUM_COLS    > 0 && NUM_COLS    < 17)                   else $fatal ("FAILURE! NUMBER OF COLUMNS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (LEVELS_BACK > 0 && LEVELS_BACK <= NUM_COLS)            else $fatal ("FAILURE! LEVELS BACK HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUM_COLS)");
   assert (NUM_MUTAT   > 0 && NUM_MUTAT   <= NUM_ROWS * NUM_COLS) else $fatal ("FAILURE! NUMBER OF MUTATIONS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUMBER OF NODES)");
-  assert (COUNT_MAX   > 0 && COUNT_MAX   < 17)                   else $fatal ("FAILURE! MAX VALUE OF COUNTERS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
-  assert (CONST_MAX   > 0 && CONST_MAX   < 17)                   else $fatal ("FAILURE! MAX VALUE OF CONSTANTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
+  assert (COUNT_MAX   > 0 && COUNT_MAX   < 101)                   else $fatal ("FAILURE! MAX VALUE OF COUNTERS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
+  assert (CONST_MAX   > 0 && CONST_MAX   < 101)                   else $fatal ("FAILURE! MAX VALUE OF CONSTANTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (POPUL_SIZE  > 0)                                       else $fatal ("FAILURE! POPULATION SIZE MUST BE LARGER THAN 0");
 
   //Instantiate population of combinatorial circuits
