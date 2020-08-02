@@ -62,27 +62,48 @@ module comb_gp;
     out = L1_norm; 
   endtask: test
 
+  */
   
+  //PWM
   task test(input comb_circuit individual, output int out);
-    const int pwm_period  = 100;
+    const int pwm_period  = 20;
     const int num_periods = 2;
-    const int duty_cycle  = 20;
+    const int duty_cycle  = 2;
     
+    L1_norm = 0;    
+    
+    X[0] = 0;
+    X[1] = duty_cycle;
+    
+    for(int t=0; t<pwm_period; t++)begin
+      Y = individual.evaluate_outputs(X);
+      Y_EXP[0] = 0;
+      L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
+      #1;
+    end 
+    
+    
+    X[0] = 1;
+    X[1] = duty_cycle;      
+
     for(int i=0; i<num_periods; i++)begin
       for(int t=0; t<pwm_period; t++)begin
-        if(t < duty_cycle)
+        if(t < X[1])
           Y_EXP[0] = 1;
         else
           Y_EXP[0] = 0;
+        Y = individual.evaluate_outputs(X);
         L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
         #1;
       end 
-    end
+    end    
     
     out = L1_norm;
   endtask: test
 
+  /*
   
+  //Square wave
   task test(input comb_circuit individual, output int out);
     const int pwm_period  = 5;
     const int num_periods = 2;
@@ -112,6 +133,7 @@ module comb_gp;
     out = L1_norm;
   endtask: test  
 
+  //Triangle wave
   task test(input comb_circuit individual, output int out);
     const int peak_val  = 8;
     const int num_periods = 2;
@@ -144,19 +166,14 @@ module comb_gp;
     out = L1_norm;
   endtask: test   
  
-  */
   
-  task pulse_x(input bit[NUM_INPUTS-1:0] mask, input int num_cycles);
+  task stimulate_x(input bit[NUM_INPUTS-1:0] mask);
 
     foreach(X[k])begin
       X[k] = mask[k];
     end
 
-    for(int i=0; i<num_cycles; i++)begin
-      #1;
-    end
-
-  endtask: pulse_x  
+  endtask: stimulate_x  
   
   task check_result(input comb_circuit individual, input int exp, output int result);
 
@@ -165,6 +182,8 @@ module comb_gp;
     L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
     if(L1_norm < 0)
       L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed   
+      
+    #1;
 
   endtask: check_result    
   
@@ -176,35 +195,40 @@ module comb_gp;
     L1_norm = 0;      
        
     //Toggle X[0] and check that Y is incremented by one after one clock cycle
-    pulse_x('b001, 1);
-    check_result(individual, 1, result); //Expect increment
+    stimulate_x('b001);
+    check_result(individual, 0, result); //Expect zero
 
     for(int i=0; i<6; i++)begin
-      pulse_x('b000, 1);
-      check_result(individual, 1, result); //Expect result to still be 1
+      stimulate_x('b000);
+      check_result(individual, 1, result); //Expect increment
     end
     
     //Toggle X[0] and check that Y is incremented by one after one clock cycle
-    pulse_x('b001, 1);
-    check_result(individual, 2, result); //Expect increment    
+    stimulate_x('b001);
+    check_result(individual, 1, result); //Expect one 
+    stimulate_x('b000);
+    check_result(individual, 2, result); //Expect increment 
+    
 
     for(int i=0; i<3; i++)begin
-      pulse_x('b000, 1);
-      check_result(individual, 2, result); //Expect result to still be 1
+      stimulate_x('b000);
+      check_result(individual, 2, result); //Expect two
     end
     
-    //Toggle X[0] and check that Y is incremented by one after one clock cycle
-    pulse_x('b001, 1);
-    check_result(individual, 3, result); //Expect increment     
-
-    //Toggle X[0] and check that Y is incremented by one after one clock cycle
-    pulse_x('b001, 1);
-    check_result(individual, 4, result); //Expect increment       
+    //Toggle X[0] for two cycles and check that Y is incremented by two
+    stimulate_x('b001);
+    check_result(individual, 2, result); //Expect two     
+    stimulate_x('b001);
+    check_result(individual, 3, result); //Expect increment 
+    stimulate_x('b000);
+    check_result(individual, 4, result); //Expect increment 
+        
 
  
     out = L1_norm;
   endtask: test     
   
+  */
   
 initial begin
 
@@ -256,8 +280,10 @@ initial begin
         if(population[i].score < best_solution.score)begin
           best_solution = population[i].copy();
           population[i].print_resource_util();
-          $display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
-          $display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters, %2d comparators and %2d muxes", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp, best_solution.num_mux);           
+          //$display("Solution found in generation %2d, genotype %2d with score of %2d", gen, i, best_solution.score); 
+          //$display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters, %2d comparators and %2d muxes", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp, best_solution.num_mux);           
+          $display("Solution found in generation %2d, genotype %2d with number of slices: %2d", gen, i, best_solution.num_slices); 
+          //$display("Resource utilization: %2d gates, %2d registers, %2d adders, %2d multipliers, %2d counters, %2d comparators and %2d muxes", best_solution.num_gates, best_solution.num_regs, best_solution.num_adders, best_solution.num_mults, best_solution.num_cnt, best_solution.num_cmp, best_solution.num_mux);           
           $stop;
         end
       end       
