@@ -17,6 +17,8 @@ module comb_gp;
   int Y[NUM_OUTPUTS];
   int Y_EXP[NUM_OUTPUTS]; //Expected output
   
+  int Y_FB[POPUL_SIZE];
+  
   int                  L1_norm           = 0; //Sum of absolute deviations
   int                  mean_fitness      = 0;
   int                  mean_fitness_prev = 0;
@@ -62,7 +64,6 @@ module comb_gp;
     out = L1_norm; 
   endtask: test
 
-  */
   
   //PWM
   task test(input comb_circuit individual, output int out);
@@ -101,7 +102,7 @@ module comb_gp;
     out = L1_norm;
   endtask: test
 
-  /*
+
   
   //Square wave
   task test(input comb_circuit individual, output int out);
@@ -132,6 +133,7 @@ module comb_gp;
     
     out = L1_norm;
   endtask: test  
+
 
   //Triangle wave
   task test(input comb_circuit individual, output int out);
@@ -166,19 +168,23 @@ module comb_gp;
     out = L1_norm;
   endtask: test   
  
+  */
   
-  task stimulate_x(input bit[NUM_INPUTS-1:0] mask);
+  task stimulate_x(input bit[NUM_INPUTS-1:0] mask, input int idx);
 
     foreach(X[k])begin
       X[k] = mask[k];
     end
+    
+    X[NUM_INPUTS-1] = Y_FB[idx];
 
   endtask: stimulate_x  
   
-  task check_result(input comb_circuit individual, input int exp, output int result);
+  task check_result(input comb_circuit individual, input int idx, input int exp, output int result);
 
     Y_EXP[0] = exp;
-    Y = individual.evaluate_outputs(X);   
+    Y = individual.evaluate_outputs(X); 
+    Y_FB[idx]= Y[0];    
     L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);
     if(L1_norm < 0)
       L1_norm = 2**31-1;  //Saturate to max if L1 norm overflowed   
@@ -187,55 +193,54 @@ module comb_gp;
 
   endtask: check_result    
   
-  
-  task test(input comb_circuit individual, output int out);
+  //Automata counter
+  task test(input comb_circuit individual, input int idx, output int out);
      
     int result;
         
     L1_norm = 0;      
        
     //Toggle X[0] and check that Y is incremented by one after one clock cycle
-    stimulate_x('b001);
-    check_result(individual, 0, result); //Expect zero
+    stimulate_x('b001, idx);
+    check_result(individual, idx, 0, result); //Expect zero
 
     for(int i=0; i<6; i++)begin
-      stimulate_x('b000);
-      check_result(individual, 1, result); //Expect increment
+      stimulate_x('b000, idx);
+      check_result(individual, idx, 1, result); //Expect increment
     end
     
     //Toggle X[0] and check that Y is incremented by one after one clock cycle
-    stimulate_x('b001);
-    check_result(individual, 1, result); //Expect one 
-    stimulate_x('b000);
-    check_result(individual, 2, result); //Expect increment 
+    stimulate_x('b001, idx);
+    check_result(individual, idx, 1, result); //Expect one 
+    stimulate_x('b000, idx);
+    check_result(individual, idx, 2, result); //Expect increment 
     
 
     for(int i=0; i<3; i++)begin
-      stimulate_x('b000);
-      check_result(individual, 2, result); //Expect two
+      stimulate_x('b000, idx);
+      check_result(individual, idx, 2, result); //Expect two
     end
     
     //Toggle X[0] for two cycles and check that Y is incremented by two
-    stimulate_x('b001);
-    check_result(individual, 2, result); //Expect two     
-    stimulate_x('b001);
-    check_result(individual, 3, result); //Expect increment 
-    stimulate_x('b000);
-    check_result(individual, 4, result); //Expect increment 
+    stimulate_x('b001, idx);
+    check_result(individual, idx, 2, result); //Expect two     
+    stimulate_x('b001, idx);
+    check_result(individual, idx, 3, result); //Expect increment 
+    stimulate_x('b000, idx);
+    check_result(individual, idx, 4, result); //Expect increment 
         
 
  
     out = L1_norm;
   endtask: test     
-  
-  */
+
   
 initial begin
 
   //Initialization phase
   assert (NUM_INPUTS  > 0 && NUM_INPUTS  < 6)                    else $fatal ("FAILURE! NUMBER OF INPUTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
   assert (NUM_OUTPUTS > 0 && NUM_OUTPUTS < 6)                    else $fatal ("FAILURE! NUMBER OF OUTPUTS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-5)");  
-  assert (NUM_ROWS    > 1 && NUM_ROWS    < 17)                   else $fatal ("FAILURE! NUMBER OF ROWS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
+  assert (NUM_ROWS    > 0 && NUM_ROWS    < 17)                   else $fatal ("FAILURE! NUMBER OF ROWS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (NUM_COLS    > 0 && NUM_COLS    < 17)                   else $fatal ("FAILURE! NUMBER OF COLUMNS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-16)");
   assert (LEVELS_BACK > 0 && LEVELS_BACK <= NUM_COLS)            else $fatal ("FAILURE! LEVELS BACK HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUM_COLS)");
   assert (NUM_MUTAT   > 0 && NUM_MUTAT   <= NUM_ROWS * NUM_COLS) else $fatal ("FAILURE! NUMBER OF MUTATIONS HAS NOT BEEN CONFIGURED WITHIN ALLOWED RANGE (1-NUMBER OF NODES)");
@@ -265,7 +270,8 @@ initial begin
       population[i].clear_counters();
 
       //Test this individual
-      test(population[i], population[i].fitness);
+      //test(population[i], population[i].fitness);
+      test(population[i], i, population[i].fitness);
 
       //Replace current best solution with improved solution
       if(best_solution.fitness > population[i].fitness)begin 
@@ -296,7 +302,8 @@ initial begin
         offspring[k].mutate();
       
         //Test this offspring individual
-        test(offspring[k], offspring[k].fitness);
+        //test(offspring[k], offspring[k].fitness);
+        test(offspring[k], i, offspring[k].fitness);
 
         if(k == 0)
           best_offspring = offspring[k].copy;
