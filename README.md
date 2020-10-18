@@ -1,2 +1,2 @@
-# GP
-Genetic Program for creating combinatorial digital circuits
+# CGP
+Cartesian Genetic Program for creating sequential digital logic for FPGA
