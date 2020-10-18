@@ -1,9 +1,7 @@
-class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, COUNT_MAX, LEVELS_BACK, NUM_MUTAT);
-  //typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, NOT = 3, DFF = 4, WIRE = 5, AND = 6, OR = 7, ADD = 8, SUB = 9, MULT = 10, COMP = 11, COMP_GT = 12, IT = 13, ITE = 14} t_operation;
+class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, COUNT_MAX, LEVELS_BACK, NUM_MUTAT);
   typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, NOT = 3, DFF = 4, WIRE = 5, AND = 6, OR = 7, ADD = 8, SUB = 9, MULT = 10, COMP = 11, COMP_GT = 12, ITE = 13} t_operation;
   typedef int out_type[NUM_OUTPUTS];
   
-  //parameter int     arity_lut[15] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3};     //Arity look-up table for "t_operation" typedef
   parameter int     arity_lut[14] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3};     //Arity look-up table for "t_operation" typedef
   
   int         genotype[NUM_INPUTS:(NUM_INPUTS + NUM_ROWS * NUM_COLS)-1][];
@@ -15,14 +13,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   int         counters[int][2];  //[0] = Counter Value, [1] = Counter Max
   int         conn_outputs[NUM_OUTPUTS-1:0];
   int         num_slices = 0;
-  //int         num_adders = 0;
-  //int         num_mults  = 0;
-  //int         num_gates  = 0;
-  //int         num_regs   = 0;
-  //int         num_cnt    = 0;
-  //int         num_cmp    = 0;
-  //int         num_mux    = 0;
-  int         fitness    = 100;      //Initialize with arbitrarily high number for poor fitness
+  int         sad        = 1000000;      //Initialize with arbitrarily high number for poor Sum of Absolute Differences (SAD)
   int         score      = 1000;     //Initialize with arbitrarily high number for poor score
 
   //Tree structure to represent circuit. Used in resource utilization calculation.
@@ -34,7 +25,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         
   endfunction: new
   
-  function comb_circuit copy();  
+  function cgp_circuit copy();  
     copy = new();  
     copy.node_arity   = this.node_arity;  
     copy.genotype     = this.genotype;  
@@ -45,14 +36,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
     copy.constants    = this.constants;
     copy.counters     = this.counters;
     copy.num_slices   = this.num_slices;
-    //copy.num_adders   = this.num_adders;
-    //copy.num_mults    = this.num_mults;
-    //copy.num_gates    = this.num_gates;
-    //copy.num_regs     = this.num_regs;  
-    //copy.num_cnt      = this.num_cnt;    
-    //copy.num_cmp      = this.num_cmp;
-    //copy.num_mux      = this.num_mux;
-    copy.fitness      = this.fitness;  
+    copy.sad          = this.sad;  
     copy.score        = this.score;
     return copy;  
   endfunction    
@@ -164,19 +148,6 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
           out = 1;
         else
           out = 0;
-      //end else if(genotype[idx][0] == IT)begin
-      //  if(it_registers.exists(idx))begin
-      //    if(input_A)begin
-      //      out               = it_registers[idx];
-      //      it_registers[idx] = input_B; 
-      //    end else begin
-      //      out               = it_registers[idx];
-      //    end 
-      //  end else begin
-      //    //Assume that all registers are initialized with value 0 
-      //    out                 = 0;
-      //    it_registers[idx]   = out; 
-      //  end
       end
     end else if(node_arity[idx] == 1)begin
       input_A = eval_outputs[genotype[idx][1]]; 
@@ -368,7 +339,7 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
        
       idx_q.push_front(conn_outputs[i]);  
         
-      //Traverse comb_circuit backwards from its output to its inputs.  
+      //Traverse cgp_circuit backwards from its output to its inputs.  
       //Only nodes that affect the output are added to the tree.  
       //When all nodes have been added to the tree, exit this while-loop.  
       while(~tree_complete[i])begin  
@@ -447,24 +418,6 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
         num_slices = num_slices + 4;    
       if(t_operation'(genotype[i][0]) == ITE)    
         num_slices = num_slices + 25;    
-      //if(t_operation'(genotype[i][0]) == ADD || t_operation'(genotype[i][0] == SUB))
-      //  num_adders = num_adders + 1;
-      //if(t_operation'(genotype[i][0]) == MULT)
-      //  num_mults  = num_mults + 1;       
-      //if(t_operation'(genotype[i][0]) == AND || t_operation'(genotype[i][0]) == OR)        
-      //  num_gates = num_gates + 1;  
-      //if(t_operation'(genotype[i][0]) == DFF)
-      //  num_regs  = num_regs + 1;
-      //if(t_operation'(genotype[i][0]) == COUNTER)
-      //  num_cnt  = num_cnt + 1;  
-      //if(t_operation'(genotype[i][0]) == COMP || t_operation'(genotype[i][0]) == COMP_GT)
-      //  num_cmp  = num_cmp + 1;
-      //if(t_operation'(genotype[i][0]) == ITE)
-      //  num_mux  = num_mux + 1;
-      //if(t_operation'(genotype[i][0]) == IT)begin
-      //  num_mux  = num_mux  + 1;
-      //  num_regs = num_regs + 1;
-      //end
     end
       
   endfunction: calc_resource_util  
@@ -494,10 +447,9 @@ class comb_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONS
   
   function void calc_score();
     
-    //score = num_gates + num_regs + 5*num_adders + 5*num_mux + 10*num_cmp + 10*num_cnt + 15*num_mults;
     score = num_slices;
   
   endfunction: calc_score
 
  
-endclass: comb_circuit
+endclass: cgp_circuit
