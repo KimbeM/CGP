@@ -14,9 +14,8 @@ entity comp_func is
     DATA_IN_WIDTH      : integer := 32    
   );
   port(
-    A                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    B                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    C                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    A_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    B_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
     Data_out           : out std_logic_vector(DATA_IN_WIDTH -1 downto 0)
     );
     
@@ -26,6 +25,6 @@ architecture Behavioral of comp_func is
 
 begin
     Data_out(31 downto 1) <= (others => '0');
-    Data_out(0) <= '1' when A = B else '0';
+    Data_out(0) <= '1' when A_in = B_in else '0';
 end Behavioral;  
     

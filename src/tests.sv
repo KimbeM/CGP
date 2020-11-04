@@ -12,7 +12,6 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
 
   task write_reg(output int exp_data);
 
-    //exp_data = $urandom_range(0, 2**16-1);  //Data to write
     exp_data = $urandom_range(0, 10);
     X[0] = 1;  //Write enable
     X[1] = exp_data;
@@ -31,7 +30,6 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
     
     int test_loops    = 0;
     int exp_data      = 0;
-    int exp_data_prev = 0;
     
     
     L1_norm = 0;    
@@ -46,7 +44,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;      
       
-      X[2] = Y[1];      
+      //X[2] = Y[1];      
       
       read_reg();
       
@@ -55,7 +53,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;
       
-      X[2] = Y[1];
+      //X[2] = Y[1];
       
       test_loops++;
     end 
@@ -75,7 +73,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
         L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
         #1;      
       
-        X[2] = Y[1];
+        //X[2] = Y[1];
       end
       
       read_reg();
@@ -85,7 +83,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;
       
-      X[2] = Y[1];
+      //X[2] = Y[1];
       
       test_loops++;
     end  
@@ -102,7 +100,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;      
       
-      X[2] = Y[1]; 
+      //X[2] = Y[1]; 
       
       read_reg();
       
@@ -114,7 +112,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
         L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
         #1;      
       
-        X[2] = Y[1];
+        //X[2] = Y[1];
       end
       
       test_loops++;
@@ -132,7 +130,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;      
       
-      X[2] = Y[1];      
+      //X[2] = Y[1];      
       
       read_reg();
       
@@ -141,7 +139,7 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;
       
-      X[2] = Y[1];
+      //X[2] = Y[1];
       
       test_loops++;
     end    

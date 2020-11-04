@@ -14,9 +14,9 @@ entity ite_func is
     DATA_IN_WIDTH      : integer := 32    
   );
   port(
-    A                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    B                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    C                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    A_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    B_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    C_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
     Data_out           : out std_logic_vector(DATA_IN_WIDTH -1 downto 0)
     );
     
@@ -25,6 +25,6 @@ entity ite_func is
 architecture Behavioral of ite_func is
 
 begin
-    Data_out <= B when A /= x"00000000" else C;
+    Data_out <= B_in when A_in /= x"00000000" else C_in;
 end Behavioral;  
     

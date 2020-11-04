@@ -65,8 +65,7 @@ initial begin
         $display("\n");
       end    
         
-      population[i].clear_registers();
-      population[i].clear_counters();
+      population[i].reset();  
 
       //Test this individual
       //t.tri_wave_test(population[i], 4, 2, population[i].sad);
@@ -94,8 +93,7 @@ initial begin
       //Create mutated offspring.
       foreach(offspring[k])begin
         offspring[k] = population[i].copy(); 
-        offspring[k].clear_registers();
-        offspring[k].clear_counters();
+        offspring[k].reset();
         offspring[k].mutate();
       
         //Test this offspring individual

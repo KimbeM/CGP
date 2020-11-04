@@ -14,9 +14,8 @@ entity add_func is
     DATA_IN_WIDTH      : integer := 32    
   );
   port(
-    A                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    B                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    C                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    A_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    B_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
     Data_out           : out std_logic_vector(DATA_IN_WIDTH -1 downto 0)
     );
     
@@ -25,6 +24,6 @@ entity add_func is
 architecture Behavioral of add_func is
 
 begin
-    Data_out <= std_logic_vector(signed(A) + signed(B));
+    Data_out <= std_logic_vector(signed(A_in) + signed(B_in));
 end Behavioral;  
     

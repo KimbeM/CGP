@@ -14,9 +14,8 @@ entity mult_func is
     DATA_IN_WIDTH      : integer := 32    
   );
   port(
-    A                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    B                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
-    C                  : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    A_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
+    B_in               : in std_logic_vector(DATA_IN_WIDTH -1 downto 0);
     Data_out           : out std_logic_vector(DATA_IN_WIDTH -1 downto 0)
     );
     
@@ -25,6 +24,6 @@ entity mult_func is
 architecture Behavioral of mult_func is
 
 begin
-    Data_out <= std_logic_vector(resize(signed(A) * signed(B), Data_out'length));
+    Data_out <= std_logic_vector(resize(signed(A_in) * signed(B_in), Data_out'length));
 end Behavioral;  
     

@@ -1,9 +1,10 @@
 class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST_MAX, COUNT_MAX, LEVELS_BACK, NUM_MUTAT);
-  typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, NOT = 3, DFF = 4, WIRE = 5, AND = 6, OR = 7, ADD = 8, SUB = 9, MULT = 10, COMP = 11, COMP_GT = 12, ITE = 13} t_operation;
+  typedef enum int {CONST_ZERO = 0, CONST = 1, COUNTER = 2, DFF = 3, NOT = 4, WIRE = 5, AND = 6, OR = 7, ADD = 8, SUB = 9, MULT = 10, COMP = 11, COMP_GT = 12, ITE = 13} t_operation;
   typedef int out_type[NUM_OUTPUTS];
   
   parameter int     arity_lut[14] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3};     //Arity look-up table for "t_operation" typedef
   
+  int         feedback_p  = 30; //Probability for feedback in percent
   int         genotype[NUM_INPUTS:(NUM_INPUTS + NUM_ROWS * NUM_COLS)-1][];
   int         node_arity[NUM_INPUTS:(NUM_INPUTS + NUM_COLS*NUM_ROWS)-1];
   int         eval_outputs[(NUM_INPUTS + NUM_ROWS * NUM_COLS)];  //Include inputs to this array, therefore indexing from 0
@@ -14,7 +15,7 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
   int         conn_outputs[NUM_OUTPUTS-1:0];
   int         num_slices = 0;
   int         sad        = 1000000;      //Initialize with arbitrarily high number for poor Sum of Absolute Differences (SAD)
-  int         score      = 1000;     //Initialize with arbitrarily high number for poor score
+  int         score      = 1000000;      //Initialize with arbitrarily high number for poor score
 
   //Tree structure to represent circuit. Used in resource utilization calculation.
   bit              tree[int][];
@@ -55,11 +56,29 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
   endfunction: create_genotype
   
   function randomize_functions(); 
-    //Randomize operation for each node
-    for(int i=NUM_INPUTS; i<NUM_ROWS * NUM_COLS + NUM_INPUTS; i++)begin
-      genotype[i][0] = $urandom_range(0, $size(arity_lut)-1);
+
+    //Column 1         : Constants and Counters
+    //Column 2 to (n-1): Combinatorial
+    //Column n         : DFFs
+    
+    //Randomize Constants and Counters of first column
+    for(int i=NUM_INPUTS; i<NUM_ROWS + NUM_INPUTS; i++)begin
+      genotype[i][0] = $urandom_range(0, 2); 
       node_arity[i]  = arity_lut[genotype[i][0]];
     end   
+    
+    //Randomize Combinatorial functions for middlemost columns
+    for(int i=NUM_ROWS + NUM_INPUTS; i<NUM_ROWS * (NUM_COLS-1) + NUM_INPUTS; i++)begin
+      genotype[i][0] = $urandom_range(4, 13);
+      node_arity[i]  = arity_lut[genotype[i][0]];
+    end     
+    
+    //Assign DFFs to last column
+    for(int i=NUM_ROWS * (NUM_COLS-1) + NUM_INPUTS; i<NUM_ROWS * NUM_COLS + NUM_INPUTS; i++)begin
+      genotype[i][0] = 3; //DFF
+      node_arity[i]  = 1;
+    end       
+    
   endfunction: randomize_functions    
 
   function randomize_connections(); 
@@ -78,21 +97,29 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
             if(k > 0)      
               conn_prev[k-1] = conn;     
             do begin      
-              if(j == 0)begin      
-                conn               = $urandom_range(0, NUM_INPUTS-1);      
-                genotype[i+NUM_INPUTS][k+1]   = conn;      
-              end else if(j < LEVELS_BACK)begin      
-                conn                              = $urandom_range(0, NUM_INPUTS+(j*NUM_ROWS)-1);      
+              //Connections for Constants & Counters
+              //if(j == 0)begin      
+              //  conn               = $urandom_range(0, NUM_INPUTS-1);      
+              //  genotype[i+NUM_INPUTS][k+1]   = conn;      
+              //Connections for DFFs
+              if(j == NUM_COLS-1)begin
+                conn               = $urandom_range(0, NUM_INPUTS+NUM_ROWS*(NUM_COLS-1)-1);      
+                genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1]   = conn; 
+              //Connections for combinatorial nodes
+              end else if(j > 0 && j < LEVELS_BACK)begin    
+                //Connect to DFF in last column 
+                if($urandom_range(0, 99) < feedback_p)
+                  conn = $urandom_range(NUM_INPUTS + NUM_ROWS*(NUM_COLS-1), NUM_INPUTS + (NUM_ROWS*NUM_COLS) - 1);         
+                //Connect to previous columns 
+                else
+                  conn = $urandom_range(0, NUM_INPUTS+(j*NUM_ROWS)-1);      
                 genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
-              end else begin      
-                conn                             = $urandom_range(NUM_INPUTS+((j-LEVELS_BACK)*NUM_ROWS), NUM_INPUTS+(j*NUM_ROWS)-1);      
-                genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;      
-              end  
-              conn_ok = 1;  //Set to 0 if any of the previous connections for this node matches conn
-              for(int x=0; x<int'(arity_lut.max(0))-1; x++)begin
-                if(conn == conn_prev[x])
-                  conn_ok = 0;
               end
+              conn_ok = 1;  //Set to 0 if any of the previous connections for this node matches conn
+              //for(int x=0; x<int'(arity_lut.max(0))-1; x++)begin
+              //  if(conn == conn_prev[x])
+              //    conn_ok = 0;
+              //end
             end while(conn_ok == 0 && k > 0);
           end
         end
@@ -105,7 +132,7 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
     
     //Debugging
     foreach(genotype[i])
-      assert(node_arity[i]  == arity_lut[genotype[i][0]]) else $fatal ("FAILURE IN COMB CIRCUIT randomize_connections()!");
+      assert(node_arity[i]  == arity_lut[genotype[i][0]]) else $fatal ("FAILURE IN cgp circuit randomize_connections()!");
     
   endfunction: randomize_connections   
 
@@ -155,14 +182,6 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
         out   = input_A;
       end else if(genotype[idx][0] == NOT)begin
         out   = !input_A;        
-      end else if(genotype[idx][0] == DFF)begin
-        if(registers.exists(idx))begin
-          out            = registers[idx];
-          registers[idx] = input_A;
-        end else begin
-          out            = 0;  //Assume that all registers are initialized with value 0        
-          registers[idx] = input_A;
-        end
       end
     end else begin
       if(genotype[idx][0] == CONST_ZERO)begin
@@ -197,30 +216,50 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
     int Y_evaluated = 0; //Counter to indicate how many bits of output Y have been evaluated
     int out_matches[$];  //Amount of matches indicate how many bits of the output Y are driven by currently evaluated node
     
-    //First column of eval_outputs = comb circuit input  
+    //First column of eval_outputs = cgp circuit input  
     for(int i=0; i<NUM_INPUTS; i++)begin
       eval_outputs[i] = X[i];
     end
-        
-    //Evaluate outputs for comb circuit nodes
+    
+    //Evaluate outputs of DFFs in last column
+    for(int i=NUM_ROWS * (NUM_COLS-1) + NUM_INPUTS; i<NUM_ROWS * NUM_COLS + NUM_INPUTS; i++)begin
+      if(registers.exists(i))begin
+        eval_outputs[i] = registers[i];
+      end else begin
+        registers[i]    = 0;
+        eval_outputs[i] = 0;
+      end
+    end      
+
+      
+    //Evaluate outputs for each node
     for(int i=NUM_INPUTS; i<NUM_ROWS * NUM_COLS + NUM_INPUTS; i++)begin
-      eval_outputs[i] = evaluate_node_output(i);
+      if(i < NUM_ROWS * (NUM_COLS-1) + NUM_INPUTS)
+        eval_outputs[i] = evaluate_node_output(i);
+      else
+        registers[i] = eval_outputs[genotype[i][1]];        
       out_matches     = conn_outputs.find_index with (item == i);
       if($size(out_matches) > 0)begin
         foreach(out_matches[j])
           Y[out_matches[j]] = eval_outputs[i];
         Y_evaluated = Y_evaluated + $size(out_matches); 
-        if(Y_evaluated == NUM_OUTPUTS)begin
-          //Debugging 
-          assert(int'(conn_outputs.max()) == i) else $fatal ("FAILURE IN COMB CIRCUIT evaluate_outputs()! Max output = %d, i=%d", int'(conn_outputs.max()), i);
-          break;                    //Break loop when all outputs Y have been evaluated
-        end
+        //if(Y_evaluated == NUM_OUTPUTS)begin
+        //  //Debugging 
+        //  assert(int'(conn_outputs.max()) == i) else $fatal ("FAILURE IN cgp circuit evaluate_outputs()! Max output = %d, i=%d", int'(conn_outputs.max()), i);
+        //end
       end
       out_matches.delete(); //Clear queue
     end
       
     return Y;
   endfunction: evaluate_outputs 
+  
+  function void reset();
+  
+    clear_registers();
+    clear_counters();
+  
+  endfunction: reset
   
   function void clear_registers();
   
@@ -260,7 +299,12 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
           constants.delete(mut_nodes[i]); //Function of this node no longer constant
         if(t_operation'(genotype[mut_nodes[i]][0]) == COUNTER)
           counters.delete(mut_nodes[i]);
-        genotype[mut_nodes[i]][0] = $urandom_range(0, $size(arity_lut)-1);
+        //Mutation if node is in first column
+        if(mut_nodes[i] < NUM_INPUTS+NUM_ROWS)
+          genotype[mut_nodes[i]][0] = $urandom_range(0, 2);
+        //Mutation if node is in middlemost columns (combinatorial nodes)
+        else if(mut_nodes[i] >= NUM_INPUTS+NUM_ROWS && mut_nodes[i] <=conn_out_offset-(NUM_ROWS+1))
+          genotype[mut_nodes[i]][0] = $urandom_range(4, 13);
         node_arity[mut_nodes[i]]  = arity_lut[genotype[mut_nodes[i]][0]]; 
         //If new function is constant or zero constant, set connections to default '0'
         if(t_operation'(genotype[i][0]) == CONST_ZERO || t_operation'(genotype[i][0]) == CONST)begin
@@ -272,7 +316,7 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
     end
     
     //Randomize connections for mutation nodes
-    //If arity = 2, ensure that connections are from different nodes
+    //If arity > 1, ensure that connections are from different nodes
     for(int i=0; i<NUM_ROWS; i++)begin
       for(int j=0; j<NUM_COLS; j++)begin
         if(mut_nodes[idx] == i + (j * NUM_ROWS) + NUM_INPUTS)begin
@@ -282,21 +326,28 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
               if(k > 0)      
                 conn_prev[k-1] = conn;      
               do begin      
-                if(j == 0)begin      
-                  conn               = $urandom_range(0, NUM_INPUTS-1);      
-                  genotype[i + NUM_INPUTS][k+1]   = conn;      
-                end else if(j < LEVELS_BACK)begin      
-                  conn                              = $urandom_range(0, NUM_INPUTS+(j*NUM_ROWS)-1);      
-                  genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn; 
-                end else begin      
-                  conn                             = $urandom_range(NUM_INPUTS+((j-LEVELS_BACK)*NUM_ROWS), NUM_INPUTS+(j*NUM_ROWS)-1);      
-                  genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;    
+                //if(j == 0)begin      
+                //  conn               = $urandom_range(0, NUM_INPUTS-1);      
+                //  genotype[i + NUM_INPUTS][k+1]   = conn;  
+                //Connections for DFFs
+                if(j == NUM_COLS-1)begin
+                  conn               = $urandom_range(0, NUM_INPUTS+NUM_ROWS*(NUM_COLS-1)-1);      
+                  genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1]   = conn;                   
+                //Connections for combinatorial nodes
+                end else if(j > 0 && j < LEVELS_BACK)begin      
+                  //Connect to DFF in last column 
+                  if($urandom_range(0, 99) < feedback_p)
+                    conn = $urandom_range(NUM_INPUTS + NUM_ROWS*(NUM_COLS-1), NUM_INPUTS + (NUM_ROWS*NUM_COLS) - 1);         
+                  //Connect to previous columns 
+                  else
+                    conn = $urandom_range(0, NUM_INPUTS+(j*NUM_ROWS)-1);      
+                  genotype[i + NUM_INPUTS + (NUM_ROWS * j)][k+1] = conn;   
                 end      
                 conn_ok = 1;  //Set to 0 if any of the previous connections for this node matches conn
-                for(int x=0; x<int'(arity_lut.max(0))-1; x++)begin
-                  if(conn == conn_prev[x])
-                    conn_ok = 0;
-                end
+                //for(int x=0; x<int'(arity_lut.max(0))-1; x++)begin
+                //  if(conn == conn_prev[x])
+                //    conn_ok = 0;
+                //end
               end while(conn_ok == 0 && k > 0);
             end
           end
@@ -316,13 +367,19 @@ class cgp_circuit #(parameter NUM_INPUTS, NUM_OUTPUTS, NUM_ROWS, NUM_COLS, CONST
 
     //Debugging
     foreach(genotype[i])
-      assert(node_arity[i]  == arity_lut[genotype[i][0]]) else $fatal ("FAILURE IN COMB CIRCUIT mutate()! Node arity does not match arity lut");    
+      assert(node_arity[i]  == arity_lut[genotype[i][0]]) else $fatal ("FAILURE IN cgp circuit mutate()! Node arity does not match arity lut");    
     
     //Debugging
-    foreach(genotype[i])begin
-      if(node_arity[i]  == 2)
-        assert(genotype[i][1] != genotype[i][2]) else $fatal ("FAILURE IN COMB CIRCUIT mutate()! Both inputs from same node");
-    end
+    //foreach(genotype[i])begin
+    //  if(node_arity[i]  == 2)
+    //    assert(genotype[i][1] != genotype[i][2]) else $fatal ("FAILURE IN cgp circuit mutate()! Both inputs from same node");
+    //end
+    //
+    ////Debugging
+    //foreach(genotype[i])begin
+    //  if(node_arity[i]  == 3)
+    //    assert(genotype[i][1] != genotype[i][2] && genotype[i][1] != genotype[i][3] && genotype[i][2] != genotype[i][3] ) else $fatal ("FAILURE IN cgp circuit mutate()! Two inputs from same node");
+    //end
 
   endfunction: mutate  
   
