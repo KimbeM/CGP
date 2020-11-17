@@ -112,8 +112,8 @@ begin
     DATA_IN_WIDTH   => DATA_IN_WIDTH
   )
   port map(
-    A_in               => A_in,
-    B_in               => B_in,
+    A_in            => A_in,
+    B_in            => B_in,
     Data_out        => and_map
   );  
   

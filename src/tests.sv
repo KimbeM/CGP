@@ -3,67 +3,76 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
   typedef int out_type[NUM_INPUTS];
 
   int rand_delay;
+  int reg_addr = 5;
 
   int X[NUM_INPUTS]; 
   int Y[NUM_OUTPUTS];
   int Y_EXP[NUM_OUTPUTS]; //Expected output
   
-  int L1_norm = 0; //Sum of absolute deviations
+  int L1_norm; //Sum of absolute differences
 
-  task write_reg(output int exp_data);
+  task write_reg(input int address, output int writedata);
 
-    exp_data = $urandom_range(0, 10);
     X[0] = 1;  //Write enable
-    X[1] = exp_data;
+    X[1] = $urandom_range(1, 10);
+    X[2] = address;
     
+    writedata = X[1];
+   
   endtask: write_reg
   
-  task read_reg();
+  task read_reg(input int address);
 
     X[0] = 0;  //Read enable
-    X[1] = $urandom_range(0, 10); //Randomize data field 
+    X[1] = $urandom_range(0, 100); //Randomize data field 
+    X[2] = address;
     
   endtask: read_reg  
 
   //Register interface
   task register_test(input cgp_circuit individual, output int out);
     
-    int test_loops    = 0;
-    int exp_data      = 0;
-    
+    int addr      = 0;
+    int data      = 0;
+    int exp_data  = 0;
     
     L1_norm = 0;    
    
     //Write then read. Check that expected data matches actual data.
-    while(test_loops < 10)begin
+    while(addr < 10)begin
       
-      write_reg(exp_data);  
+      write_reg(addr, data);  
+      
+      if(addr == reg_addr)
+        exp_data = data;
       
       Y = individual.evaluate_outputs(X);
       Y_EXP[0] = 0; //Write is set, expect zero data
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;      
-      
-      //X[2] = Y[1];      
-      
-      read_reg();
+            
+      read_reg(addr);
       
       Y = individual.evaluate_outputs(X);
-      Y_EXP[0] = exp_data; //Read is set, expect previously written data
+      if(addr == reg_addr)
+        Y_EXP[0] = exp_data; //Read is set, expect previously written data
+      else
+        Y_EXP[0] = 0;        //Expect zero data from wrong address
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;
-      
-      //X[2] = Y[1];
-      
-      test_loops++;
+            
+      addr++;
     end 
     
-    test_loops    = 0;
+    addr    = 0;
     
     //Write for random num cycles, then read. Check that expected data matches actual data.
-    while(test_loops < 10)begin
+    while(addr < 10)begin
       
-      write_reg(exp_data);  
+      write_reg(addr, data);  
+      
+      if(addr == reg_addr)
+        exp_data = data; 
       
       rand_delay = $urandom_range(1,3);
       
@@ -73,75 +82,79 @@ class tests#(parameter NUM_INPUTS, NUM_OUTPUTS);
         L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
         #1;      
       
-        //X[2] = Y[1];
       end
       
-      read_reg();
+      read_reg(addr);
       
       Y = individual.evaluate_outputs(X);
-      Y_EXP[0] = exp_data; //Read is set, expect previously written data
+      if(addr == reg_addr)
+        Y_EXP[0] = exp_data; //Read is set, expect previously written data
+      else
+        Y_EXP[0] = 0;        //Expect zero data from wrong address
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;
-      
-      //X[2] = Y[1];
-      
-      test_loops++;
+            
+      addr++;
     end  
 
-    test_loops    = 0;    
+    addr    = 0;    
     
     //Write then read for random num cycles. Check that expected data matches actual data.
-    while(test_loops < 10)begin
+    while(addr < 10)begin
       
-      write_reg(exp_data);  
+      write_reg(addr, data);  
+      
+      if(addr == reg_addr)
+        exp_data = data;  
       
       Y = individual.evaluate_outputs(X);
       Y_EXP[0] = 0; //Write is set, expect zero data
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;      
-      
-      //X[2] = Y[1]; 
-      
-      read_reg();
+            
+      read_reg(addr);
       
       rand_delay = $urandom_range(1,3);
       
       for(int i=0; i<rand_delay; i++)begin
         Y = individual.evaluate_outputs(X);
-        Y_EXP[0] = exp_data; //Read is set, expect previously written data
+        if(addr == reg_addr)
+          Y_EXP[0] = exp_data; //Read is set, expect previously written data
+        else
+          Y_EXP[0] = 0;        //Expect zero data from wrong address
         L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
         #1;      
-      
-        //X[2] = Y[1];
       end
       
-      test_loops++;
+      addr++;
     end  
 
-    test_loops    = 0;     
+    addr    = 0;     
 
-    //Write then read, but WE is not set. Check that nothing is written and that read data is zero.
-    while(test_loops < 10)begin
+    //Randomize data without setting WE then read. Check that nothing is written and that read data is zero.
+    while(addr < 10)begin
       
       X[1] = $urandom_range(0, 10);
       
       Y = individual.evaluate_outputs(X);
-      Y_EXP[0] = 0; //Expect zero data
+      if(addr == reg_addr)
+        Y_EXP[0] = exp_data; //Read is set, expect previously written data
+      else
+        Y_EXP[0] = 0;        //Expect zero data from wrong address
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;      
-      
-      //X[2] = Y[1];      
-      
-      read_reg();
+            
+      read_reg(addr);
       
       Y = individual.evaluate_outputs(X);
-      Y_EXP[0] = 0; //Expect zero data
+      if(addr == reg_addr)
+        Y_EXP[0] = exp_data; //Read is set, expect previously written data
+      else
+        Y_EXP[0] = 0;        //Expect zero data from wrong address
       L1_norm = L1_norm + abs(Y[0] - Y_EXP[0]);        
       #1;
-      
-      //X[2] = Y[1];
-      
-      test_loops++;
+            
+      addr++;
     end    
     
     
